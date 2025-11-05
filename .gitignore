@@ -1,0 +1,380 @@
+# =============================================================================
+# VeilForge - Advanced Steganography Suite - .gitignore
+# DEPLOYMENT-READY: Secure exclusions for Vercel production deployment
+# =============================================================================
+
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# CRITICAL SECURITY - NEVER COMMIT THESE FILES
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+# Environment Variables & Secrets (NEVER COMMIT!)
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local  
+.env.production
+.env.production.local
+.env.*
+*_config.json
+secrets.json
+credentials.json
+api-keys.txt
+config/secrets/
+*.pem
+*.key
+*.crt
+*.p12
+supabase_keys.txt
+email_credentials.txt
+database_credentials.json
+
+# Node.js Dependencies (LARGE - exclude from deployment)
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.pnpm-debug.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Test Files & Artifacts
+test_*.mp4
+test_*.avi
+test_*.mp3
+test_*.wav
+test_*.jpg
+test_*.jpeg
+test_*.png
+test_*.pdf
+test_*.txt
+test_*.docx
+debug_*.mp4
+debug_*.avi
+debug_*.wav
+temp_*.avi
+temp_*.mp4
+*_test_*.jpg
+*_test_*.png
+quality_test_*
+large_test_*
+enhanced_test_*
+ultra_test_*
+lossless_test_*
+large_perfect_*
+
+# Output Files
+outputs/
+temp/
+uploads/
+test_files/
+output*.png
+output*.jpg
+output*.mp4
+output*.avi
+output*.wav
+output*.mp3
+output*.pdf
+output*.txt
+output*.docx
+extracted_*
+hidden_*
+stego_*
+*_output.*
+*_stego.*
+
+# Demo & Sample Files (keep some for testing)
+demo_audio.*
+demo_video.*
+basic_stego.*
+basic_test.*
+simple_stego.*
+simple_test.*
+small_test.*
+working_*
+final_demo.*
+final_stego_*
+integration_*
+
+# Analysis & Debug Files
+analyze_*
+debug_*
+temp.*
+*.tmp
+
+# Logs
+*.log
+logs/
+
+# Runtime Directories (NEVER COMMIT!)
+outputs/
+temp/
+uploads/
+downloads/
+cache/
+tmp/
+build/
+dist/
+.next/
+.nuxt/
+.vuepress/dist/
+.serverless/
+.vercel/
+
+# Package files
+*.egg-info/
+dist/
+build/
+
+# Documentation build
+docs/_build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Large media files (except essential ones)
+*.mkv
+*.mov
+*.wmv
+*.flv
+*.webm
+*.m4a
+*.aac
+*.ogg
+*.flac
+
+# Frontend Build & Development Files
+**/dist/
+**/build/
+**/.next/
+**/.nuxt/
+**/.svelte-kit/
+.turbo/
+.vite/
+vite.config.*.timestamp-*
+*.tsbuildinfo
+
+# Large Media Files (>1MB - exclude except essential frontend assets)
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wmv
+*.flv
+*.webm
+**/*.mp4
+**/*.avi
+**/*.mov
+
+# EXCEPT: Keep essential frontend demo/UI assets
+!frontend/src/assets/DemoExp.mp4
+!frontend/src/assets/hero-bg.jpg
+
+# Large development/test files (exclude these)
+large_*.jpg
+large_*.png
+huge_*.jpg  
+huge_*.png
+test_*.mp4
+test_*.avi
+demo_*.mp4
+sample_*.mp4
+*_test_*.mp4
+
+# Keep essential small images
+!**/logo.png
+!**/favicon.*
+!**/og-image.*
+!**/placeholder.*
+!**/profile.JPG
+
+# Test Files in Frontend (should be in dev_unused/)
+frontend/*test*.*
+frontend/test_*.*
+frontend/copyright_test.*
+frontend/save_as_test.*
+frontend/test_save_as.*
+frontend/test_database.*
+
+# Application-specific temporary files
+metadata.json
+capacity_report.txt
+.tmp/
+.temp/
+
+# =============================================================================
+# DEPLOYMENT CLEANUP - Exclude development/testing files from deployment
+# =============================================================================
+# Development and testing files moved here during deployment preparation
+dev_unused/
+**/dev_unused/
+
+# Additional patterns to keep development files out of production  
+test_*.py
+*test*.py
+*demo*.py
+*check*.py
+*debug*.py
+*fix*.py
+*verify*.py
+*validation*.py
+sample_*
+temp_*
+mock_*
+quick_*
+minimal_*
+standalone_*
+run_backend.py
+fixed_backend.py
+minimal_backend.py
+
+# Test data and output files
+*_extracted*
+*_embedded*
+*_stego.*
+*_result.*
+*_output.*
+workflow_*
+integrity_test_*
+step*_result.*
+api_extracted_*
+direct_extracted_*
+user_extraction_result.*
+reliable_web_output_*
+
+# =============================================================================
+# FINAL DEPLOYMENT SAFETY CHECKS
+# =============================================================================
+
+# Ensure no sensitive or temporary files slip through
+*.backup
+*.bak
+*.old
+*.orig
+*.rej
+*.swp
+*.tmp
+*~
+.#*
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE and editor files
+.vscode/settings.json
+.vscode/launch.json
+.idea/workspace.xml
+.idea/tasks.xml
+*.sublime-*
+*.code-workspace
+
+# Development databases and local storage  
+*.db
+*.sqlite
+*.sqlite3
+local.db
+test.db
+
+# Logs and debugging
+*.log
+*.out
+*.err
+debug.log
+error.log
+access.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS and system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# =============================================================================
+# END OF GITIGNORE - DEPLOYMENT READY
+# =============================================================================

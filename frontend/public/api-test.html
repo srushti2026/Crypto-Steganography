@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Connection Test</title>
+</head>
+<body>
+    <h1>Steganography API Connection Test</h1>
+    <div id="results"></div>
+    <button onclick="testAPI()">Test API Connection</button>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+        
+        async function testAPI() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>Testing API connection...</p>';
+            
+            try {
+                // Test health endpoint
+                console.log('Testing:', API_BASE_URL + '/health');
+                const response = await fetch(API_BASE_URL + '/health');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultsDiv.innerHTML = `
+                        <h2>✅ API Connection Successful!</h2>
+                        <p><strong>Status:</strong> ${data.status}</p>
+                        <p><strong>Version:</strong> ${data.version}</p>
+                        <p><strong>Available Managers:</strong></p>
+                        <ul>
+                            <li>Image: ${data.available_managers.image ? '✅' : '❌'}</li>
+                            <li>Video: ${data.available_managers.video ? '✅' : '❌'}</li>
+                            <li>Audio: ${data.available_managers.audio ? '✅' : '❌'}</li>
+                            <li>Document: ${data.available_managers.document ? '✅' : '❌'}</li>
+                        </ul>
+                        <p><strong>Timestamp:</strong> ${data.timestamp}</p>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `<h2>❌ API Error</h2><p>Status: ${response.status}</p>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <h2>❌ Connection Failed</h2>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p><strong>Type:</strong> ${error.name}</p>
+                `;
+                console.error('API Test Error:', error);
+            }
+        }
+        
+        // Auto-test on page load
+        window.addEventListener('load', testAPI);
+    </script>
+</body>
+</html>

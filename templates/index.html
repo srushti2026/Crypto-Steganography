@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeilForge - Advanced Steganography</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-tabs .nav-link {
+            border: none;
+            border-radius: 15px 15px 0 0;
+            color: var(--primary-color);
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tabs .nav-link.active {
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            border: none;
+            border-radius: 25px;
+            padding: 12px 30px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(52, 152, 219, 0.3);
+        }
+
+        .form-control, .form-select {
+            border-radius: 15px;
+            border: 2px solid #e0e0e0;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+        }
+
+        .upload-area {
+            border: 3px dashed #ddd;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: var(--secondary-color);
+            background: rgba(52, 152, 219, 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--success-color);
+            background: rgba(39, 174, 96, 0.1);
+        }
+
+        .progress {
+            height: 25px;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            background: linear-gradient(135deg, var(--success-color), #2ecc71);
+            transition: width 0.3s ease;
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 15px;
+            border: none;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: rgba(243, 156, 18, 0.1);
+            color: var(--warning-color);
+        }
+
+        .status-processing {
+            background: rgba(52, 152, 219, 0.1);
+            color: var(--secondary-color);
+        }
+
+        .status-completed {
+            background: rgba(39, 174, 96, 0.1);
+            color: var(--success-color);
+        }
+
+        .status-failed {
+            background: rgba(231, 76, 60, 0.1);
+            color: var(--accent-color);
+        }
+
+        .feature-icon {
+            background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+            color: white;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin: 0 auto 1rem;
+        }
+
+        /* Password functionality styles */
+        .alert-sm {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        #hidePasswordInfo .font-monospace {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #0d6efd;
+        }
+
+        .input-group .btn {
+            border-left: none;
+        }
+
+        .input-group .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .password-tooltip {
+            position: relative;
+        }
+
+        .password-strength {
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 2px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        .password-strength-bar {
+            height: 100%;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+
+        .strength-weak { background-color: #dc3545; }
+        .strength-medium { background-color: #ffc107; }
+        .strength-strong { background-color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="main-container p-5">
+            <!-- Header -->
+            <div class="text-center mb-5">
+                <h1 class="display-4 fw-bold text-primary mb-3">
+                    <i class="fas fa-shield-alt me-3"></i>VeilForge
+                </h1>
+                <p class="lead text-muted">Advanced Steganography Web Interface</p>
+                <p class="text-muted">Hide and extract data in images, audio, video, and documents with military-grade security</p>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="hide-tab" data-bs-toggle="tab" data-bs-target="#hide" type="button" role="tab">
+                        <i class="fas fa-eye-slash me-2"></i>Hide Data
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="extract-tab" data-bs-toggle="tab" data-bs-target="#extract" type="button" role="tab">
+                        <i class="fas fa-search me-2"></i>Extract Data
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="analyze-tab" data-bs-toggle="tab" data-bs-target="#analyze" type="button" role="tab">
+                        <i class="fas fa-chart-line me-2"></i>Analyze Capacity
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Tab Content -->
+            <div class="tab-content" id="mainTabContent">
+                <!-- Hide Data Tab -->
+                <div class="tab-pane fade show active" id="hide" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <form id="hideForm" enctype="multipart/form-data">
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Container File</label>
+                                        <div class="upload-area" id="containerUpload">
+                                            <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                                            <p class="mb-2">Drop container file here or click to browse</p>
+                                            <small class="text-muted">Supports: Images, Audio, Video, Documents</small>
+                                            <input type="file" id="containerFile" class="d-none" accept=".png,.jpg,.jpeg,.bmp,.wav,.mp3,.mp4,.avi,.pdf,.docx,.xml,.txt">
+                                        </div>
+                                        <!-- Audio Info -->
+                                        <div id="audioWarning" class="alert alert-info mt-2" style="display: none;">
+                                            <i class="fas fa-music me-2"></i>
+                                            <strong>Audio Steganography:</strong> Now working reliably! Uses advanced PCM steganography with error correction. Output will be in WAV format for best compatibility.
+                                        </div>
+                                        <div id="containerPreview" class="mt-2"></div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Data to Hide</label>
+                                        <div class="mb-3">
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="dataType" id="textData" value="text" checked>
+                                                <label class="form-check-label" for="textData">Text Message</label>
+                                            </div>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="radio" name="dataType" id="fileData" value="file">
+                                                <label class="form-check-label" for="fileData">File</label>
+                                            </div>
+                                        </div>
+                                        <div id="textInput">
+                                            <textarea class="form-control" id="secretText" rows="5" placeholder="Enter your secret message..."></textarea>
+                                        </div>
+                                        <div id="fileInput" class="d-none">
+                                            <div class="upload-area" id="secretFileUpload">
+                                                <i class="fas fa-file fa-2x text-muted mb-2"></i>
+                                                <p class="mb-1">Drop secret file here or click to browse</p>
+                                                <input type="file" id="secretFile" class="d-none">
+                                            </div>
+                                            <div id="secretFilePreview" class="mt-2"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <label for="hidePassword" class="form-label fw-bold">Password</label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="hidePassword" placeholder="Enter password or leave empty for auto-generation">
+                                            <button class="btn btn-outline-secondary" type="button" id="toggleHidePassword" title="Show/Hide Password">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-outline-primary" type="button" id="generateHidePassword" title="Generate Strong Password">
+                                                <i class="fas fa-key"></i> Auto
+                                            </button>
+                                        </div>
+                                        <div id="hidePasswordInfo" class="mt-2" style="display: none;">
+                                            <div class="alert alert-info alert-sm d-flex align-items-center">
+                                                <i class="fas fa-info-circle me-2"></i>
+                                                <div class="flex-grow-1">
+                                                    <strong>Auto-generated password:</strong> 
+                                                    <span id="hidePasswordDisplay" class="font-monospace"></span>
+                                                </div>
+                                                <button class="btn btn-sm btn-outline-primary ms-2" type="button" id="copyHidePassword" title="Copy Password">
+                                                    <i class="fas fa-copy"></i>
+                                                </button>
+                                            </div>
+                                            <small class="text-muted">
+                                                <i class="fas fa-exclamation-triangle"></i> 
+                                                Please save this password! You'll need it to extract the hidden data.
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Options</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="enhancedMode">
+                                            <label class="form-check-label" for="enhancedMode">
+                                                Enhanced Security Mode
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-lock me-2"></i>Hide Data
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card result-card">
+                                <div class="card-body">
+                                    <h5 class="card-title"><i class="fas fa-info-circle me-2"></i>Hide Operation</h5>
+                                    <div id="hideStatus">
+                                        <p class="text-muted">Ready to hide data in your container file.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Extract Data Tab -->
+                <div class="tab-pane fade" id="extract" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <form id="extractForm" enctype="multipart/form-data">
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold">Container File (with hidden data)</label>
+                                    <div class="upload-area" id="extractUpload">
+                                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                                        <p class="mb-2">Drop file here or click to browse</p>
+                                        <small class="text-muted">File containing hidden data</small>
+                                        <input type="file" id="extractFile" class="d-none" accept=".png,.jpg,.jpeg,.bmp,.wav,.mp3,.mp4,.avi,.pdf,.docx,.xml,.txt">
+                                    </div>
+                                    <div id="extractPreview" class="mt-2"></div>
+                                </div>
+
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <label for="extractPassword" class="form-label fw-bold">Password</label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="extractPassword" placeholder="Enter the password used for hiding" required>
+                                            <button class="btn btn-outline-secondary" type="button" id="toggleExtractPassword" title="Show/Hide Password">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        <small class="text-muted">
+                                            <i class="fas fa-info-circle"></i>
+                                            Use the exact same password that was used during hiding (including auto-generated passwords)
+                                        </small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">Options</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="extractEnhancedMode">
+                                            <label class="form-check-label" for="extractEnhancedMode">
+                                                Enhanced Security Mode
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-unlock me-2"></i>Extract Data
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card result-card">
+                                <div class="card-body">
+                                    <h5 class="card-title"><i class="fas fa-download me-2"></i>Extract Operation</h5>
+                                    <div id="extractStatus">
+                                        <p class="text-muted">Ready to extract hidden data from your file.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analyze Capacity Tab -->
+                <div class="tab-pane fade" id="analyze" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <form id="analyzeForm" enctype="multipart/form-data">
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold">Container File to Analyze</label>
+                                    <div class="upload-area" id="analyzeUpload">
+                                        <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                                        <p class="mb-2">Drop file here or click to browse</p>
+                                        <small class="text-muted">Analyze hiding capacity</small>
+                                        <input type="file" id="analyzeFile" class="d-none" accept=".png,.jpg,.jpeg,.bmp,.wav,.mp3,.mp4,.avi,.pdf,.docx,.xml,.txt">
+                                    </div>
+                                    <div id="analyzePreview" class="mt-2"></div>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-calculator me-2"></i>Analyze Capacity
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card result-card">
+                                <div class="card-body">
+                                    <h5 class="card-title"><i class="fas fa-chart-bar me-2"></i>Analysis Results</h5>
+                                    <div id="analyzeStatus">
+                                        <p class="text-muted">Upload a file to analyze its steganographic capacity.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Features Section -->
+            <div class="row mt-5 pt-5 border-top">
+                <div class="col-md-3 text-center mb-4">
+                    <div class="feature-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h5>Military-Grade Security</h5>
+                    <p class="text-muted small">AES-256 encryption with PBKDF2 key derivation</p>
+                </div>
+                <div class="col-md-3 text-center mb-4">
+                    <div class="feature-icon">
+                        <i class="fas fa-images"></i>
+                    </div>
+                    <h5>Multi-Format Support</h5>
+                    <p class="text-muted small">Images, Audio, Video, PDF, DOCX, and more</p>
+                </div>
+                <div class="col-md-3 text-center mb-4">
+                    <div class="feature-icon">
+                        <i class="fas fa-eye-slash"></i>
+                    </div>
+                    <h5>Undetectable</h5>
+                    <p class="text-muted small">Advanced techniques resist statistical analysis</p>
+                </div>
+                <div class="col-md-3 text-center mb-4">
+                    <div class="feature-icon">
+                        <i class="fas fa-sync-alt"></i>
+                    </div>
+                    <h5>Error Correction</h5>
+                    <p class="text-muted small">Reed-Solomon codes ensure data integrity</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let currentJobs = new Map();
+
+        // Utility functions
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function showStatus(elementId, status, message, isError = false) {
+            const element = document.getElementById(elementId);
+            const statusClass = isError ? 'status-failed' : `status-${status}`;
+            element.innerHTML = `
+                <div class="status-badge ${statusClass} mb-2">${status.toUpperCase()}</div>
+                <p class="mb-0">${message}</p>
+            `;
+        }
+
+        // File upload handlers
+        function setupFileUpload(uploadAreaId, fileInputId, previewId) {
+            const uploadArea = document.getElementById(uploadAreaId);
+            const fileInput = document.getElementById(fileInputId);
+            const preview = document.getElementById(previewId);
+
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    fileInput.files = files;
+                    showFilePreview(files[0], preview);
+                }
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    showFilePreview(e.target.files[0], preview);
+                }
+            });
+        }
+
+        function showFilePreview(file, previewElement) {
+            previewElement.innerHTML = `
+                <div class="alert alert-info d-flex align-items-center">
+                    <i class="fas fa-file me-2"></i>
+                    <div>
+                        <strong>${file.name}</strong><br>
+                        <small>${formatBytes(file.size)}</small>
+                    </div>
+                </div>
+            `;
+            
+            // Show audio info if it's an audio file
+            const audioWarning = document.getElementById('audioWarning');
+            if (audioWarning) {
+                const audioExtensions = ['.wav', '.mp3', '.flac', '.ogg', '.m4a', '.aac'];
+                const fileExt = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+                
+                if (audioExtensions.includes(fileExt)) {
+                    audioWarning.style.display = 'block';
+                } else {
+                    audioWarning.style.display = 'none';
+                }
+            }
+        }
+
+        // Data type toggle
+        document.querySelectorAll('input[name="dataType"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const textInput = document.getElementById('textInput');
+                const fileInput = document.getElementById('fileInput');
+                
+                if (e.target.value === 'text') {
+                    textInput.classList.remove('d-none');
+                    fileInput.classList.add('d-none');
+                } else {
+                    textInput.classList.add('d-none');
+                    fileInput.classList.remove('d-none');
+                }
+            });
+        });
+
+        // Password functionality
+        async function generatePassword() {
+            try {
+                const response = await fetch('/api/generate-password');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const passwordField = document.getElementById('hidePassword');
+                    const passwordDisplay = document.getElementById('hidePasswordDisplay');
+                    const passwordInfo = document.getElementById('hidePasswordInfo');
+                    
+                    passwordField.value = data.password;
+                    passwordDisplay.textContent = data.password;
+                    passwordInfo.style.display = 'block';
+                    
+                    // Show a temporary success message
+                    showPasswordMessage('Password generated successfully! Please copy and save it.', 'success');
+                } else {
+                    showPasswordMessage('Failed to generate password: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showPasswordMessage('Error generating password: ' + error.message, 'error');
+            }
+        }
+
+        function showPasswordMessage(message, type) {
+            // Create and show a temporary toast-like message
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+            toast.style.top = '20px';
+            toast.style.right = '20px';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(toast);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 5000);
+        }
+
+        function togglePasswordVisibility(inputId, buttonId) {
+            const passwordField = document.getElementById(inputId);
+            const toggleButton = document.getElementById(buttonId);
+            const icon = toggleButton.querySelector('i');
+            
+            if (passwordField.type === 'password') {
+                passwordField.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                passwordField.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        }
+
+        function copyPasswordToClipboard() {
+            const passwordDisplay = document.getElementById('hidePasswordDisplay');
+            const password = passwordDisplay.textContent;
+            
+            navigator.clipboard.writeText(password).then(() => {
+                showPasswordMessage('Password copied to clipboard!', 'success');
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = password;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showPasswordMessage('Password copied to clipboard!', 'success');
+            });
+        }
+
+        // Event listeners for password functionality
+        document.getElementById('generateHidePassword').addEventListener('click', generatePassword);
+        document.getElementById('toggleHidePassword').addEventListener('click', () => {
+            togglePasswordVisibility('hidePassword', 'toggleHidePassword');
+        });
+        document.getElementById('toggleExtractPassword').addEventListener('click', () => {
+            togglePasswordVisibility('extractPassword', 'toggleExtractPassword');
+        });
+        document.getElementById('copyHidePassword').addEventListener('click', copyPasswordToClipboard);
+
+        // Job status polling
+        function pollJobStatus(jobId, statusElementId) {
+            const poll = () => {
+                fetch(`/api/job/${jobId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        showStatus(statusElementId, data.status, data.message);
+                        
+                        if (data.status === 'completed') {
+                            const element = document.getElementById(statusElementId);
+                            element.innerHTML += `
+                                <div class="mt-3">
+                                    <a href="/api/download/${jobId}" class="btn btn-success btn-sm">
+                                        <i class="fas fa-download me-1"></i>Download Result
+                                    </a>
+                                </div>
+                            `;
+                            
+                            if (data.result) {
+                                element.innerHTML += `
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            Data size: ${formatBytes(data.result.data_size || 0)}<br>
+                                            ${data.result.container_type ? `Container: ${data.result.container_type}` : ''}
+                                        </small>
+                                    </div>
+                                `;
+                            }
+                        } else if (data.status === 'failed') {
+                            showStatus(statusElementId, data.status, data.message, true);
+                        } else if (data.status === 'processing' || data.status === 'pending') {
+                            setTimeout(poll, 2000);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error polling job status:', error);
+                        showStatus(statusElementId, 'failed', 'Failed to check job status', true);
+                    });
+            };
+            poll();
+        }
+
+        // Form submissions
+        document.getElementById('hideForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const containerFile = document.getElementById('containerFile').files[0];
+            const secretFile = document.getElementById('secretFile').files[0];
+            const secretText = document.getElementById('secretText').value;
+            let password = document.getElementById('hidePassword').value;
+            const enhanced = document.getElementById('enhancedMode').checked;
+            const dataType = document.querySelector('input[name="dataType"]:checked').value;
+
+            if (!containerFile) {
+                alert('Please select a container file');
+                return;
+            }
+
+            if (dataType === 'text' && !secretText.trim()) {
+                alert('Please enter text to hide');
+                return;
+            }
+
+            if (dataType === 'file' && !secretFile) {
+                alert('Please select a file to hide');
+                return;
+            }
+
+            // Auto-generate password if none provided
+            if (!password.trim()) {
+                try {
+                    const passwordResponse = await fetch('/api/generate-password');
+                    const passwordData = await passwordResponse.json();
+                    
+                    if (passwordData.success) {
+                        password = passwordData.password;
+                        const passwordField = document.getElementById('hidePassword');
+                        const passwordDisplay = document.getElementById('hidePasswordDisplay');
+                        const passwordInfo = document.getElementById('hidePasswordInfo');
+                        
+                        passwordField.value = password;
+                        passwordDisplay.textContent = password;
+                        passwordInfo.style.display = 'block';
+                        
+                        showPasswordMessage('Auto-generated password for this operation. Please copy and save it!', 'success');
+                    } else {
+                        alert('Failed to generate password. Please enter a password manually.');
+                        return;
+                    }
+                } catch (error) {
+                    alert('Error generating password. Please enter a password manually.');
+                    return;
+                }
+            }
+
+            const formData = new FormData();
+            formData.append('container_file', containerFile);
+            if (dataType === 'file') {
+                formData.append('secret_file', secretFile);
+            }
+            
+            const requestData = {
+                password: password,
+                data: dataType === 'text' ? secretText : null,
+                is_enhanced: enhanced
+            };
+            formData.append('request_data', JSON.stringify(requestData));
+
+            showStatus('hideStatus', 'processing', 'Uploading files and starting hide operation...');
+
+            try {
+                const response = await fetch('/api/hide', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    pollJobStatus(result.job_id, 'hideStatus');
+                } else {
+                    showStatus('hideStatus', 'failed', result.detail, true);
+                }
+            } catch (error) {
+                showStatus('hideStatus', 'failed', 'Network error occurred', true);
+            }
+        });
+
+        document.getElementById('extractForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const extractFile = document.getElementById('extractFile').files[0];
+            const password = document.getElementById('extractPassword').value;
+            const enhanced = document.getElementById('extractEnhancedMode').checked;
+
+            if (!extractFile) {
+                alert('Please select a file to extract from');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('container_file', extractFile);
+            
+            const requestData = {
+                password: password,
+                is_enhanced: enhanced
+            };
+            formData.append('request_data', JSON.stringify(requestData));
+
+            showStatus('extractStatus', 'processing', 'Uploading file and starting extract operation...');
+
+            try {
+                const response = await fetch('/api/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    pollJobStatus(result.job_id, 'extractStatus');
+                } else {
+                    showStatus('extractStatus', 'failed', result.detail, true);
+                }
+            } catch (error) {
+                showStatus('extractStatus', 'failed', 'Network error occurred', true);
+            }
+        });
+
+        document.getElementById('analyzeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const analyzeFile = document.getElementById('analyzeFile').files[0];
+
+            if (!analyzeFile) {
+                alert('Please select a file to analyze');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', analyzeFile);
+            formData.append('request_data', JSON.stringify({}));
+
+            showStatus('analyzeStatus', 'processing', 'Analyzing file capacity...');
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    document.getElementById('analyzeStatus').innerHTML = `
+                        <div class="status-badge status-completed mb-3">ANALYSIS COMPLETE</div>
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>File Size:</strong><br>
+                                <span class="text-muted">${formatBytes(result.file_size)}</span>
+                            </div>
+                            <div class="col-6">
+                                <strong>Container Type:</strong><br>
+                                <span class="text-muted">${result.container_type}</span>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>Max Capacity:</strong><br>
+                                <span class="text-primary">${formatBytes(result.estimated_capacity)}</span>
+                            </div>
+                            <div class="col-6">
+                                <strong>Safe Capacity:</strong><br>
+                                <span class="text-success">${formatBytes(result.safe_capacity)}</span>
+                            </div>
+                        </div>
+                        ${result.recommendations && result.recommendations.length > 0 ? `
+                        <hr>
+                        <div>
+                            <strong>Recommendations:</strong>
+                            <ul class="mt-2 mb-0">
+                                ${result.recommendations.map(rec => `<li class="small text-muted">${rec}</li>`).join('')}
+                            </ul>
+                        </div>
+                        ` : ''}
+                    `;
+                } else {
+                    showStatus('analyzeStatus', 'failed', result.detail, true);
+                }
+            } catch (error) {
+                showStatus('analyzeStatus', 'failed', 'Network error occurred', true);
+            }
+        });
+
+        // Initialize file uploads
+        setupFileUpload('containerUpload', 'containerFile', 'containerPreview');
+        setupFileUpload('secretFileUpload', 'secretFile', 'secretFilePreview');
+        setupFileUpload('extractUpload', 'extractFile', 'extractPreview');
+        setupFileUpload('analyzeUpload', 'analyzeFile', 'analyzePreview');
+    </script>
+</body>
+</html>
