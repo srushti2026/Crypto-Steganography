@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: veilforge-backend
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port 10000
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DEBUG  
+        value: false
+      # Add your actual environment variables in the Render dashboard:
+      # SUPABASE_URL=https://your-project.supabase.co
+      # SUPABASE_KEY=your_supabase_anon_key
+      # FRONTEND_URL=https://your-frontend-domain.vercel.app
+      # EMAILJS_SERVICE_ID=your_service_id
+      # EMAILJS_TEMPLATE_ID=your_template_id  
+      # EMAILJS_PUBLIC_KEY=your_public_key
+      # EMAIL_USER=your_smtp_email
+      # EMAIL_PASSWORD=your_smtp_password
+      # RECIPIENT_EMAIL=contact@yourdomain.com
