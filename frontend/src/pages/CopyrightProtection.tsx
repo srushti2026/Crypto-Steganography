@@ -45,6 +45,11 @@ const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:8
 
 // Helper function to format timestamp in user-friendly way
 const formatTimestampForHumans = (date: Date): string => {
+  // Check if the date is valid
+  if (isNaN(date.getTime())) {
+    return 'Invalid Date';
+  }
+  
   const options: Intl.DateTimeFormatOptions = {
     year: 'numeric',
     month: 'long',
@@ -59,19 +64,43 @@ const formatTimestampForHumans = (date: Date): string => {
 
 // Helper function to display timestamp (handles both old ISO and new user-friendly formats)
 const displayTimestamp = (timestampStr: string): string => {
-  // Check if it's already in ISO format (contains 'T' and ends with 'Z')
-  if (timestampStr.includes('T') && (timestampStr.endsWith('Z') || timestampStr.includes('+') || timestampStr.includes('-'))) {
+  // Handle null, undefined, or empty strings
+  if (!timestampStr || timestampStr.trim() === '') {
+    return 'N/A';
+  }
+
+  // Clean the timestamp string
+  const cleanTimestamp = timestampStr.trim();
+
+  // Check if it's already in ISO format (contains 'T' and ends with 'Z' or has timezone)
+  if (cleanTimestamp.includes('T') && (cleanTimestamp.endsWith('Z') || cleanTimestamp.includes('+') || cleanTimestamp.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/))) {
     // It's an ISO timestamp, convert to user-friendly format
     try {
-      const date = new Date(timestampStr);
+      const date = new Date(cleanTimestamp);
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return cleanTimestamp; // Return original string if date is invalid
+      }
       return formatTimestampForHumans(date);
     } catch {
       // If parsing fails, return as-is
-      return timestampStr;
+      return cleanTimestamp;
     }
   } else {
-    // It's already in user-friendly format, return as-is
-    return timestampStr;
+    // Check if it looks like it might be a partial ISO string or malformed date
+    if (cleanTimestamp.includes('-') && cleanTimestamp.length > 10) {
+      try {
+        const date = new Date(cleanTimestamp);
+        if (!isNaN(date.getTime())) {
+          return formatTimestampForHumans(date);
+        }
+      } catch {
+        // If it fails, fall through to return as-is
+      }
+    }
+    
+    // It's already in user-friendly format or unrecognized format, return as-is
+    return cleanTimestamp;
   }
 };
 

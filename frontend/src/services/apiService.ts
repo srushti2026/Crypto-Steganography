@@ -3,14 +3,10 @@
  * Handles all communication with the FastAPI backend
  */
 
-// Dynamic API base URL that adapts to the current hostname
+// Dynamic API base URL using environment variable
 const getApiBaseUrl = (): string => {
-  if (typeof window !== 'undefined') {
-    // Use the same hostname as the frontend but port 8000 for the API
-    return `${window.location.protocol}//${window.location.hostname}:8000/api`;
-  }
-  // Fallback for server-side rendering
-  return 'http://localhost:8000/api';
+  // Use environment variable if available, otherwise fallback to local development
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 };
 
 const API_BASE_URL = getApiBaseUrl();

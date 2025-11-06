@@ -6,7 +6,6 @@ import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ArrowRight, Play, FileImage, Shield, Lock, Eye, Zap } from "lucide-react";
-import DemoVideo from "@/assets/DemoExp.mp4";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -189,15 +188,15 @@ export default function Home() {
               
               <div className="relative animate-fade-in [animation-delay:200ms]">
                 <div className="aspect-video rounded-xl overflow-hidden shadow-2xl bg-black">
-                  <video 
-                    className="w-full h-full object-cover"
-                    controls
-                    preload="metadata"
-                    poster=""
-                  >
-                    <source src={DemoVideo} type="video/mp4" />
-                    Your browser does not support the video tag.
-                  </video>
+                  <iframe 
+                    className="w-full h-full"
+                    src="https://www.youtube.com/embed/ozS3mpBlTiY?si=J9GFhQJl7HKlXrql" 
+                    title="VeilForge Steganography Platform Demo"
+                    frameBorder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    referrerPolicy="strict-origin-when-cross-origin" 
+                    allowFullScreen
+                  ></iframe>
                 </div>
                 
                 {/* Floating elements */}
