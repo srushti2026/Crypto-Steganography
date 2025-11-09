@@ -1380,22 +1380,50 @@ export default function General() {
                         
                         {/* Display selected files for batch mode */}
                         {batchMode && carrierFiles.length > 0 && (
-                          <div className="space-y-2 max-h-40 overflow-y-auto">
-                            <Label className="text-xs">Selected Files:</Label>
+                          <div className="space-y-2 max-h-40 overflow-y-auto animate-fade-in">
+                            <Label className="text-xs flex items-center gap-2">
+                              Selected Files:
+                              <Badge variant="secondary" className="text-xs">
+                                {carrierFiles.length} files
+                              </Badge>
+                            </Label>
                             {carrierFiles.map((file, index) => (
-                              <div key={index} className="flex items-center justify-between bg-muted p-2 rounded text-sm">
-                                <span className="truncate">{file.name}</span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground">
-                                    {(file.size / 1024).toFixed(1)} KB
-                                  </span>
-                                  <button
-                                    onClick={() => removeCarrierFile(index)}
-                                    className="text-blue-500 hover:text-blue-700 text-xs"
-                                  >
-                                    ×
-                                  </button>
+                              <div 
+                                key={index} 
+                                className="flex items-center justify-between bg-gradient-to-r from-muted to-muted/50 p-3 rounded-lg border border-primary/10 hover:border-primary/20 transition-colors animate-slide-up"
+                                style={{ animationDelay: `${index * 0.1}s` }}
+                              >
+                                <div className="flex items-center gap-3 flex-1">
+                                  {/* File type icon */}
+                                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                    {file.type.startsWith('image/') ? (
+                                      <ImageIcon className="h-4 w-4 text-primary" />
+                                    ) : file.type.startsWith('video/') ? (
+                                      <Video className="h-4 w-4 text-blue-600" />
+                                    ) : file.type.startsWith('audio/') ? (
+                                      <Music className="h-4 w-4 text-green-600" />
+                                    ) : (
+                                      <FileText className="h-4 w-4 text-gray-600" />
+                                    )}
+                                  </div>
+                                  
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-sm font-medium truncate block">{file.name}</span>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <span>{(file.size / 1024).toFixed(1)} KB</span>
+                                      <span>•</span>
+                                      <span className="capitalize">{file.type.split('/')[0]}</span>
+                                    </div>
+                                  </div>
                                 </div>
+                                
+                                <button
+                                  onClick={() => removeCarrierFile(index)}
+                                  className="ml-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                                  title="Remove file"
+                                >
+                                  ×
+                                </button>
                               </div>
                             ))}
                           </div>
@@ -1630,15 +1658,190 @@ export default function General() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      {carrierFile && (
-                        <div className="space-y-2">
-                          <Label>Carrier File Preview</Label>
-                          <div className="aspect-video rounded-lg overflow-hidden bg-muted flex items-center justify-center">
-                            <FileImage className="h-16 w-16 text-muted-foreground" />
+                      {/* Batch mode preview */}
+                      {batchMode && carrierFiles.length > 0 && (
+                        <div className="space-y-2 animate-fade-in">
+                          <Label>Batch Preview ({carrierFiles.length} files)</Label>
+                          <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto p-2 border rounded-lg bg-muted/30">
+                            {carrierFiles.slice(0, 4).map((file, index) => (
+                              <div 
+                                key={index}
+                                className="aspect-square rounded-md overflow-hidden bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center border border-primary/20 animate-fade-in"
+                                style={{ animationDelay: `${index * 0.1}s` }}
+                              >
+                                {file.type.startsWith('image/') ? (
+                                  <img 
+                                    src={URL.createObjectURL(file)} 
+                                    alt={`Preview ${index + 1}`}
+                                    className="w-full h-full object-cover"
+                                    onLoad={(e) => setTimeout(() => URL.revokeObjectURL(e.currentTarget.src), 1000)}
+                                  />
+                                ) : file.type.startsWith('video/') ? (
+                                  <Video className="h-8 w-8 text-blue-600" />
+                                ) : file.type.startsWith('audio/') ? (
+                                  <Music className="h-8 w-8 text-green-600" />
+                                ) : (
+                                  <FileText className="h-8 w-8 text-gray-600" />
+                                )}
+                              </div>
+                            ))}
+                            {carrierFiles.length > 4 && (
+                              <div className="aspect-square rounded-md bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center border border-gray-300 dark:border-gray-600">
+                                <span className="text-sm font-medium">+{carrierFiles.length - 4}</span>
+                              </div>
+                            )}
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            {carrierFile.name} ({(carrierFile.size / 1024).toFixed(1)} KB)
-                          </p>
+                          <div className="text-xs text-muted-foreground bg-primary/5 p-2 rounded">
+                            Total size: {(carrierFiles.reduce((sum, file) => sum + file.size, 0) / 1024).toFixed(1)} KB
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Single file preview area - Always visible */}
+                      {!batchMode && (
+                        <div className="space-y-2 animate-fade-in">
+                          <Label>Carrier File Preview</Label>
+                          <div className="aspect-video rounded-lg overflow-hidden bg-muted border-2 border-dashed border-primary/20 relative group min-h-[200px]">
+                            {/* Animated background gradient */}
+                            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 animate-pulse"></div>
+                            
+                            {/* Preview content based on file type - Enhanced for all formats */}
+                            {carrierFile ? (
+                              carrierFile.type.startsWith('image/') ? (
+                              <div className="w-full h-full relative">
+                                <img 
+                                  src={URL.createObjectURL(carrierFile)} 
+                                  alt="Carrier preview"
+                                  className="w-full h-full object-cover animate-fade-in transition-transform duration-300 group-hover:scale-105"
+                                  onLoad={(e) => {
+                                    // Clean up object URL after loading
+                                    setTimeout(() => URL.revokeObjectURL(e.currentTarget.src), 1000);
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
+                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white/90 dark:bg-black/90 rounded-full p-3">
+                                    <FileImage className="h-6 w-6 text-primary" />
+                                  </div>
+                                </div>
+                              </div>
+                            ) : carrierFile.type.startsWith('video/') ? (
+                              <div className="w-full h-full relative flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
+                                <div className="text-center animate-bounce">
+                                  <Video className="h-12 w-12 text-blue-600 mx-auto mb-2" />
+                                  <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Video File</p>
+                                </div>
+                                <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded animate-fade-in">
+                                  MP4
+                                </div>
+                              </div>
+                            ) : carrierFile.type.startsWith('audio/') ? (
+                              <div className="w-full h-full relative flex items-center justify-center bg-gradient-to-br from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20">
+                                <div className="text-center">
+                                  <Music className="h-12 w-12 text-green-600 mx-auto mb-2 animate-pulse" />
+                                  <p className="text-sm font-medium text-green-700 dark:text-green-300">Audio File</p>
+                                  {/* Animated audio waves */}
+                                  <div className="flex items-center justify-center mt-3 gap-1">
+                                    {[1, 2, 3, 4, 5].map((i) => (
+                                      <div 
+                                        key={i}
+                                        className={`bg-green-500 animate-bounce w-1 rounded-full ${
+                                          i === 1 ? 'h-2' : i === 2 ? 'h-4' : i === 3 ? 'h-6' : i === 4 ? 'h-4' : 'h-2'
+                                        }`}
+                                        style={{ animationDelay: `${i * 0.1}s` }}
+                                      ></div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded animate-fade-in">
+                                  {carrierFile.name.split('.').pop()?.toUpperCase()}
+                                </div>
+                              </div>
+                            ) : (
+                              // Document or other file types
+                              <div className="w-full h-full relative flex items-center justify-center bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-900/20 dark:to-slate-900/20">
+                                <div className="text-center animate-fade-in">
+                                  {carrierFile.name.toLowerCase().endsWith('.pdf') ? (
+                                    <div>
+                                      <FileText className="h-12 w-12 text-red-600 mx-auto mb-2" />
+                                      <p className="text-sm font-medium text-red-700 dark:text-red-300">PDF Document</p>
+                                    </div>
+                                  ) : carrierFile.name.toLowerCase().match(/\.(doc|docx)$/) ? (
+                                    <div>
+                                      <FileText className="h-12 w-12 text-blue-600 mx-auto mb-2" />
+                                      <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Word Document</p>
+                                    </div>
+                                  ) : carrierFile.name.toLowerCase().endsWith('.txt') ? (
+                                    <div>
+                                      <FileText className="h-12 w-12 text-gray-600 mx-auto mb-2" />
+                                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Text File</p>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <FileText className="h-12 w-12 text-gray-600 mx-auto mb-2" />
+                                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        {carrierFile.type.includes('/') ? 
+                                          carrierFile.type.split('/')[1].toUpperCase() + ' File' : 
+                                          'Document File'
+                                        }
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="absolute top-2 right-2 bg-gray-600 text-white text-xs px-2 py-1 rounded animate-fade-in">
+                                  {carrierFile.name.split('.').pop()?.toUpperCase()}
+                                </div>
+                              </div>
+                              )
+                            ) : (
+                              // No file selected - show placeholder
+                              <div className="w-full h-full relative flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/20 dark:to-gray-800/20">
+                                <div className="text-center animate-fade-in opacity-60">
+                                  <FileImage className="h-16 w-16 text-gray-400 mx-auto mb-3" />
+                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No File Selected</p>
+                                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Upload a carrier file to see preview</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* File info with animation - Only show when file is selected */}
+                          {carrierFile && (
+                            <div className="animate-slide-up bg-gradient-to-r from-primary/5 to-secondary/5 p-3 rounded-lg border border-primary/10">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate" title={carrierFile.name}>
+                                    {carrierFile.name}
+                                  </p>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <span>{(carrierFile.size / 1024).toFixed(1)} KB</span>
+                                    <span>•</span>
+                                    <span className="capitalize">{carrierFile.type.split('/')[0]}</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                  <span className="text-xs text-green-600 font-medium">Ready</span>
+                                </div>
+                              </div>
+                              
+                              {/* Capacity indicator */}
+                              <div className="mt-2 pt-2 border-t border-primary/10">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-muted-foreground">Estimated Capacity:</span>
+                                  <span className="font-medium text-primary">
+                                    {carrierFile.type.startsWith('image/') ? 
+                                      `~${Math.floor(carrierFile.size * 0.1 / 1024)} KB` :
+                                      carrierFile.type.startsWith('audio/') ?
+                                      `~${Math.floor(carrierFile.size * 0.05 / 1024)} KB` :
+                                      carrierFile.type.startsWith('video/') ?
+                                      `~${Math.floor(carrierFile.size * 0.01 / 1024)} KB` :
+                                      'Variable'
+                                    }
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -1870,9 +2073,33 @@ export default function General() {
                               {operationResult.file_size && (
                                 <p className="text-sm"><strong>File Size:</strong> {formatFileSize(operationResult.file_size)}</p>
                               )}
+                              
+                              {/* Multi-layer extraction details */}
+                              {operationResult.is_multi_layer && (
+                                <div className="space-y-2">
+                                  <p className="text-sm"><strong>Multi-Layer Extraction:</strong> {operationResult.total_layers_extracted} layers found</p>
+                                  {operationResult.layer_details && operationResult.layer_details.length > 0 && (
+                                    <div className="space-y-1">
+                                      <p className="text-sm font-medium">Layer Details:</p>
+                                      <div className="space-y-1">
+                                        {operationResult.layer_details.map((layer: any, index: number) => (
+                                          <div key={index} className="text-xs bg-background rounded p-2">
+                                            <strong>Layer {layer.layer_number}:</strong> {layer.filename} 
+                                            ({formatFileSize(layer.size)})
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {/* Text content display */}
                               {(operationResult.text_content || operationResult.preview) && (
                                 <div className="space-y-1">
-                                  <p className="text-sm font-medium">Text Content:</p>
+                                  <p className="text-sm font-medium">
+                                    {operationResult.is_multi_layer ? "Combined Layer Content:" : "Text Content:"}
+                                  </p>
                                   <div className="p-2 bg-background rounded border max-h-32 overflow-y-auto">
                                     <pre className="text-xs font-mono whitespace-pre-wrap">
                                       {operationResult.text_content || operationResult.preview}
@@ -1889,10 +2116,16 @@ export default function General() {
                             disabled={!currentOperationId}
                           >
                             <Download className="h-4 w-4 mr-2" />
-                            Save Extracted Data As...
+                            {operationResult.is_multi_layer 
+                              ? `Download ZIP (${operationResult.total_layers_extracted} layers)`
+                              : "Save Extracted Data As..."
+                            }
                           </Button>
                           <p className="text-xs text-muted-foreground text-center mt-2">
-                            Choose your preferred filename and save location
+                            {operationResult.is_multi_layer
+                              ? "ZIP file contains all extracted layers as separate files"
+                              : "Choose your preferred filename and save location"
+                            }
                           </p>
                         </div>
                       )}

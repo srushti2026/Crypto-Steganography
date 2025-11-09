@@ -22,7 +22,8 @@ import {
   Activity,
   Clock,
   BarChart3,
-  FileText
+  FileText,
+  Check
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -140,7 +141,7 @@ function AllProjectFilesDisplay({ user, projects }: AllProjectFilesDisplayProps)
           <div className="space-y-3">
             {allFiles.map((file) => (
               <div key={file.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-3 flex-1 min-w-0">
                   <div className="flex-shrink-0">
                     {file.is_processed ? (
                       <Badge variant="default">Processed</Badge>
@@ -148,24 +149,29 @@ function AllProjectFilesDisplay({ user, projects }: AllProjectFilesDisplayProps)
                       <Badge variant="secondary">Uploaded</Badge>
                     )}
                   </div>
-                  <div>
-                    <p className="font-medium">{file.file_name}</p>
-                    <p className="text-sm text-gray-500">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate" title={file.file_name}>
+                      {file.file_name}
+                    </p>
+                    <p className="text-sm text-gray-500 truncate">
                       Project: {file.projects?.name || 'Unknown Project'} ({file.projects?.project_type})
                       {file.file_size && ` • ${(file.file_size / 1024 / 1024).toFixed(2)} MB`}
                       {file.encryption_method && ` • ${file.encryption_method} encryption`}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  {file.file_url && (
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={file.file_url} download target="_blank" rel="noopener noreferrer">
-                        <Download className="h-4 w-4 mr-1" />
-                        Download
-                      </a>
-                    </Button>
-                  )}
+                <div className="flex items-center space-x-2 flex-shrink-0">
+                  <Button size="sm" variant="outline" asChild>
+                    <a 
+                      href={file.file_url || `/api/files/download/${file.id}`} 
+                      download={file.file_name}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Download
+                    </a>
+                  </Button>
                   <span className="text-xs text-gray-400">
                     {new Date(file.created_at).toLocaleDateString()}
                   </span>
@@ -184,49 +190,107 @@ interface RecentActivityDisplayProps {
 }
 
 function RecentActivityDisplay({ user }: RecentActivityDisplayProps) {
-  const [activities, setActivities] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>({
+    totalOperations: 0,
+    recentOperations: 0,
+    totalProjects: 0,
+    totalFiles: 0,
+    successfulOperations: 0,
+    encryptionMethods: {},
+    fileTypes: {}
+  });
+  const [operations, setOperations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
 
   useEffect(() => {
     if (user) {
-      loadRecentActivity();
+      loadActivityStats();
     }
   }, [user]);
 
-  const loadRecentActivity = async () => {
+  const loadActivityStats = async () => {
     try {
-      const { data, error } = await supabase
-        .from("activities")
-        .select(`
-          *,
-          projects(name)
-        `)
+      // Load recent operations for detailed view
+      const { data: recentOps, error: opsError } = await supabase
+        .from("operations")
+        .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(5);
 
-      if (error) throw error;
+      if (opsError) throw opsError;
 
-      setActivities(data || []);
-    } catch (error) {
-      console.error('❌ Error loading recent activity:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load recent activity.",
-        variant: "destructive",
+      // Load statistics
+      const { count: totalOpsCount } = await supabase
+        .from("operations")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      const { count: successfulOpsCount } = await supabase
+        .from("operations")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("status", "completed");
+
+      const { count: projectsCount } = await supabase
+        .from("projects")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      const { count: filesCount } = await supabase
+        .from("files")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      // Calculate recent operations (last 7 days)
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      
+      const { count: recentOpsCount } = await supabase
+        .from("operations")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .gte("created_at", weekAgo.toISOString());
+
+      setStats({
+        totalOperations: totalOpsCount || 0,
+        recentOperations: recentOpsCount || 0,
+        totalProjects: projectsCount || 0,
+        totalFiles: filesCount || 0,
+        successfulOperations: successfulOpsCount || 0
       });
+
+      setOperations(recentOps || []);
+    } catch (error) {
+      console.error('Error loading activity stats:', error);
+      setStats({
+        totalOperations: 0,
+        recentOperations: 0,
+        totalProjects: 0,
+        totalFiles: 0,
+        successfulOperations: 0
+      });
+      setOperations([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const formatActivityType = (type: string) => {
-    switch (type) {
-      case 'embed': return 'Data Embedded';
-      case 'extract': return 'Data Extracted';
-      case 'upload': return 'File Uploaded';
-      default: return type;
+  const getOperationIcon = (operation: string) => {
+    switch (operation.toLowerCase()) {
+      case 'embed': return <Shield className="h-4 w-4 text-blue-600" />;
+      case 'extract': return <Eye className="h-4 w-4 text-green-600" />;
+      case 'upload': return <FileImage className="h-4 w-4 text-purple-600" />;
+      default: return <Activity className="h-4 w-4 text-gray-600" />;
+    }
+  };
+
+  const formatOperation = (operation: string) => {
+    switch (operation.toLowerCase()) {
+      case 'embed': return 'Data Embedding';
+      case 'extract': return 'Data Extraction';
+      case 'upload': return 'File Upload';
+      default: return operation;
     }
   };
 
@@ -234,8 +298,8 @@ function RecentActivityDisplay({ user }: RecentActivityDisplayProps) {
     return (
       <Card>
         <CardContent className="p-6 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-2">Loading activity...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2">Loading statistics...</p>
         </CardContent>
       </Card>
     );
@@ -245,48 +309,95 @@ function RecentActivityDisplay({ user }: RecentActivityDisplayProps) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Activity className="h-5 w-5" />
-          Recent Activity
+          <BarChart3 className="h-5 w-5" />
+          Activity Overview
         </CardTitle>
         <CardDescription>
-          Your latest steganography operations and project activities
+          Statistical overview of your steganography operations and platform usage
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {activities.length === 0 ? (
-          <div className="text-center text-muted-foreground py-8">
-            <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-semibold mb-2">No Recent Activity</h3>
-            <p>Start using steganography features to see your activity here</p>
+        {/* Statistics Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="text-center p-4 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border">
+            <Activity className="h-6 w-6 text-blue-600 mx-auto mb-2" />
+            <p className="text-xl font-bold text-blue-700 dark:text-blue-300">{stats.totalOperations}</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">Total Operations</p>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {activities.map((activity) => (
-              <div key={activity.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className="flex-shrink-0">
-                    <Badge variant="secondary">{formatActivityType(activity.activity_type)}</Badge>
+          <div className="text-center p-4 rounded-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border">
+            <Clock className="h-6 w-6 text-green-600 mx-auto mb-2" />
+            <p className="text-xl font-bold text-green-700 dark:text-green-300">{stats.recentOperations}</p>
+            <p className="text-xs text-green-600 dark:text-green-400">This Week</p>
+          </div>
+          <div className="text-center p-4 rounded-lg bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border">
+            <FolderOpen className="h-6 w-6 text-purple-600 mx-auto mb-2" />
+            <p className="text-xl font-bold text-purple-700 dark:text-purple-300">{stats.totalProjects}</p>
+            <p className="text-xs text-purple-600 dark:text-purple-400">Projects</p>
+          </div>
+          <div className="text-center p-4 rounded-lg bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border">
+            <FileText className="h-6 w-6 text-orange-600 mx-auto mb-2" />
+            <p className="text-xl font-bold text-orange-700 dark:text-orange-300">{stats.totalFiles}</p>
+            <p className="text-xs text-orange-600 dark:text-orange-400">Files Processed</p>
+          </div>
+        </div>
+
+        {/* Success Rate */}
+        <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">Success Rate</p>
+              <p className="text-2xl font-bold text-emerald-800 dark:text-emerald-200">
+                {stats.totalOperations > 0 ? Math.round((stats.successfulOperations / stats.totalOperations) * 100) : 0}%
+              </p>
+            </div>
+            <div className="text-emerald-600">
+              <Check className="h-8 w-8" />
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Operations */}
+        <div>
+          <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Latest Operations
+          </h4>
+          {operations.length === 0 ? (
+            <div className="text-center text-muted-foreground py-6">
+              <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No operations yet</p>
+              <p className="text-xs">Start embedding or extracting data to see activity</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {operations.map((operation) => (
+                <div key={operation.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
+                      {getOperationIcon(operation.operation_type)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {formatOperation(operation.operation_type)}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {operation.carrier_file_name || 'Unknown file'} • 
+                        <Badge variant={operation.status === 'completed' ? 'default' : 'secondary'} className="ml-1 text-xs">
+                          {operation.status}
+                        </Badge>
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium">{activity.file_name || 'Unknown File'}</p>
-                    <p className="text-sm text-gray-500">
-                      Project: {activity.projects?.name || 'Unknown Project'}
-                      {activity.encryption_method && ` • ${activity.encryption_method} encryption`}
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(operation.created_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400">
-                    {new Date(activity.created_at).toLocaleDateString()}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {new Date(activity.created_at).toLocaleTimeString()}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -365,7 +476,7 @@ export function ProjectFilesDisplay({ project, refreshTrigger }: ProjectFilesDis
           <div className="space-y-3">
             {files.map((file) => (
               <div key={file.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-3 flex-1 min-w-0">
                   <div className="flex-shrink-0">
                     {file.is_processed ? (
                       <Badge variant="default">Processed</Badge>
@@ -373,23 +484,28 @@ export function ProjectFilesDisplay({ project, refreshTrigger }: ProjectFilesDis
                       <Badge variant="secondary">Uploaded</Badge>
                     )}
                   </div>
-                  <div>
-                    <p className="font-medium">{file.file_name}</p>
-                    <p className="text-sm text-gray-500">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate" title={file.file_name}>
+                      {file.file_name}
+                    </p>
+                    <p className="text-sm text-gray-500 truncate">
                       {file.file_size && `${(file.file_size / 1024 / 1024).toFixed(2)} MB`}
                       {file.encryption_method && ` • ${file.encryption_method} encryption`}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  {file.file_url && (
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={file.file_url} download target="_blank" rel="noopener noreferrer">
-                        <Download className="h-4 w-4 mr-1" />
-                        Download
-                      </a>
-                    </Button>
-                  )}
+                <div className="flex items-center space-x-2 flex-shrink-0">
+                  <Button size="sm" variant="outline" asChild>
+                    <a 
+                      href={file.file_url || `/api/files/download/${file.id}`} 
+                      download={file.file_name}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Download
+                    </a>
+                  </Button>
                   <span className="text-xs text-gray-400">
                     {new Date(file.created_at).toLocaleDateString()}
                   </span>

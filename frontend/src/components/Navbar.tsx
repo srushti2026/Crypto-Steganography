@@ -68,7 +68,7 @@ export default function Navbar() {
     await SessionManager.handleLogout();
   };
 
-  return <header className={cn("fixed top-0 left-0 right-0 z-50 transition-all duration-300", scrolled ? "bg-white/80 dark:bg-card/80 backdrop-blur-lg py-1 shadow-md" : "bg-transparent py-1.5")}>
+  return <header className={cn("fixed top-0 left-0 right-0 z-50 transition-all duration-300", scrolled ? "bg-white/90 dark:bg-card/90 backdrop-blur-lg py-1 shadow-md" : "bg-white/70 dark:bg-card/70 backdrop-blur-md py-1.5 shadow-sm")}>
       <nav className="container flex justify-between items-center">
         <div className="flex items-center space-x-8">
           <Link to="/" className="flex items-center">
