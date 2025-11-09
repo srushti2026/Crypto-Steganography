@@ -80,26 +80,26 @@ except ImportError:
         print(f"[ERROR] Video steganography module not available: {e}")
         steganography_managers['video'] = None
 
-# Image Steganography - Use universal file steganography
+# Image Steganography - Use multi-layer steganography with backward compatibility
 try:
     try:
-        from .modules.universal_file_steganography import UniversalFileSteganography
+        from .modules.multi_layer_steganography import UniversalFileSteganography
     except ImportError:
-        from modules.universal_file_steganography import UniversalFileSteganography
+        from modules.multi_layer_steganography import UniversalFileSteganography
     steganography_managers['image'] = UniversalFileSteganography
-    print("[OK] Universal file steganography module loaded for images")
+    print("[OK] Multi-layer steganography module loaded for images")
 except ImportError as e:
     print(f"[ERROR] Image steganography module not available: {e}")
     steganography_managers['image'] = None
 
-# Document Steganography - Use universal file steganography  
+# Document Steganography - Use multi-layer steganography with backward compatibility  
 try:
     try:
-        from .modules.universal_file_steganography import UniversalFileSteganography
+        from .modules.multi_layer_steganography import UniversalFileSteganography
     except ImportError:
-        from modules.universal_file_steganography import UniversalFileSteganography
+        from modules.multi_layer_steganography import UniversalFileSteganography
     steganography_managers['document'] = UniversalFileSteganography
-    print("[OK] Universal file steganography module loaded for documents")
+    print("[OK] Multi-layer steganography module loaded for documents")
 except ImportError as e:
     print(f"[ERROR] Document steganography module not available: {e}")
     steganography_managers['document'] = None
@@ -267,17 +267,61 @@ def cleanup_old_files(directory: Path, max_age_hours: int = 24):
         print(f"Cleanup error: {e}")
 
 def update_job_status(job_id: str, status: str, progress: int = None, 
-                     message: str = None, error: str = None, result: Dict = None):
-    """Update job status in memory"""
+                     message: str = None, error: str = None, result: Dict = None,
+                     output_files: List[str] = None, extracted_data: str = None,
+                     original_filename: str = None, is_multi_layer: bool = False,
+                     layer_details: List[Dict] = None):
+    """Update job status in memory with multi-layer support"""
     if job_id in active_jobs:
-        active_jobs[job_id].update({
+        update_data = {
             "status": status,
             "progress": progress,
             "message": message,
             "error": error,
             "result": result,
             "updated_at": datetime.now().isoformat()
-        })
+        }
+        
+        # Add multi-layer specific data if provided
+        if output_files is not None:
+            update_data["output_files"] = output_files
+        if extracted_data is not None:
+            update_data["extracted_data"] = extracted_data
+        if original_filename is not None:
+            update_data["original_filename"] = original_filename
+        if is_multi_layer:
+            update_data["is_multi_layer"] = is_multi_layer
+        if layer_details is not None:
+            update_data["layer_details"] = layer_details
+            
+        active_jobs[job_id].update(update_data)
+
+def sanitize_filename(filename: str) -> str:
+    """Sanitize filename to be safe for filesystem operations"""
+    if not filename:
+        return "unnamed_file"
+    
+    # Remove or replace unsafe characters
+    import re
+    safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', filename)
+    
+    # Remove leading/trailing dots and spaces
+    safe_name = safe_name.strip('. ')
+    
+    # Handle reserved names on Windows
+    reserved_names = {'CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'}
+    if safe_name.upper() in reserved_names:
+        safe_name = f"_{safe_name}"
+    
+    # Ensure it's not empty
+    if not safe_name:
+        safe_name = "unnamed_file"
+    
+    # Limit length
+    if len(safe_name) > 250:
+        safe_name = safe_name[:250]
+    
+    return safe_name
 
 def _is_likely_text_content(data):
     """Check if bytes data is likely UTF-8 text content"""
@@ -2953,234 +2997,327 @@ async def process_extract_operation(
         if hasattr(manager, 'safe_stego') and hasattr(manager.safe_stego, 'password'):
             print(f"[DEBUG EXTRACT] Manager password set to: {repr(manager.safe_stego.password)}")
         
-        # Call extract_data with password parameter
+        # Call extract_data with password parameter (now supports multi-layer)
         try:
-            extraction_result = manager.extract_data(stego_file_path, password=password)
+            extraction_result = manager.extract_data(stego_file_path, password=password, output_dir=str(OUTPUT_DIR))
         except TypeError:
-            # Fallback for managers that don't accept password parameter in extract_data
-            extraction_result = manager.extract_data(stego_file_path)
+            # Fallback for managers that don't accept output_dir parameter
+            try:
+                extraction_result = manager.extract_data(stego_file_path, password=password)
+            except TypeError:
+                # Ultimate fallback for old managers
+                extraction_result = manager.extract_data(stego_file_path)
         
         # DEBUG: Log extraction result details
         print(f"[DEBUG EXTRACT] extraction_result type: {type(extraction_result)}")
-        print(f"[DEBUG EXTRACT] extraction_result: {repr(extraction_result)[:200]}")
+        print(f"[DEBUG EXTRACT] extraction_result: {repr(extraction_result)[:500]}")
         
-        if extraction_result is None or (isinstance(extraction_result, tuple) and extraction_result[0] is None):
+        if extraction_result is None:
             raise Exception("Extraction failed - wrong password or no hidden data")
         
-        # Handle tuple return (data, filename) from managers
-        if isinstance(extraction_result, tuple):
-            extracted_data, original_filename = extraction_result
-            print(f"[DEBUG EXTRACT] Tuple unpacked - data type: {type(extracted_data)}, filename: {original_filename}")
-        else:
-            extracted_data = extraction_result
-            original_filename = None
-            print(f"[DEBUG EXTRACT] Non-tuple result - data type: {type(extracted_data)}")
+        update_job_status(operation_id, "processing", 70, "Processing extraction results")
         
-        update_job_status(operation_id, "processing", 70, "Checking for layered data")
-        
-        # Check if extracted data is a layered container
-        is_layered_data = False
-        if isinstance(extracted_data, str):
-            is_layered_data = is_layered_container(extracted_data)
-            print(f"[DEBUG EXTRACT] String data - layered: {is_layered_data}")
-        elif isinstance(extracted_data, bytes):
-            try:
-                decoded_data = extracted_data.decode('utf-8')
-                is_layered_data = is_layered_container(decoded_data)
-                if is_layered_data:
-                    extracted_data = decoded_data
-                    print(f"[DEBUG EXTRACT] Converted bytes to string for layered container")
-            except UnicodeDecodeError:
-                is_layered_data = False
-                print(f"[DEBUG EXTRACT] Bytes data - not UTF-8 decodable, not layered")
-        
-        if is_layered_data:
-            update_job_status(operation_id, "processing", 75, "Extracting multiple layers")
-            print(f"[EXTRACT] Detected layered container, extracting layers...")
-            
-            # Extract all layers from the container
-            layers = extract_layered_data_container(extracted_data)
-            print(f"[EXTRACT] Extracted {len(layers)} layers")
-            
-            # Create a ZIP file containing all layers
-            import zipfile
-            zip_filename = f"extracted_layers_{int(time.time())}.zip"
-            zip_path = OUTPUT_DIR / zip_filename
-            
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for i, (layer_content, layer_filename) in enumerate(layers):
-                    # Use the actual filename from the layer, or generate one
-                    if not layer_filename or layer_filename == "extracted_data.bin":
-                        if isinstance(layer_content, str):
-                            layer_filename = f"layer_{i+1}.txt"
-                        else:
-                            # Try to detect file format for binary content
-                            detected_extension = detect_file_format_from_binary(layer_content)
-                            if detected_extension:
-                                layer_filename = f"layer_{i+1}{detected_extension}"
-                                print(f"[EXTRACT] Detected format for layer {i+1}: {detected_extension}")
-                            else:
-                                layer_filename = f"layer_{i+1}.bin"
-                    
-                    # If filename still ends with .bin, try to detect format
-                    elif layer_filename.endswith('.bin') and isinstance(layer_content, bytes):
-                        detected_extension = detect_file_format_from_binary(layer_content)
-                        if detected_extension:
-                            # Replace .bin with detected extension
-                            layer_filename = layer_filename[:-4] + detected_extension
-                            print(f"[EXTRACT] Fixed .bin filename to: {layer_filename}")
-                    
-                    # Ensure filename is safe for ZIP
-                    import re
-                    layer_filename = re.sub(r'[<>:"/\\|?*]', '_', layer_filename)
-                    
-                    print(f"[EXTRACT] Adding layer {i+1}: {layer_filename} ({len(layer_content)} bytes, type: {type(layer_content)})")
-                    
-                    # Write content to ZIP with proper format preservation
-                    if isinstance(layer_content, str):
-                        zipf.writestr(layer_filename, layer_content.encode('utf-8'))
-                    elif isinstance(layer_content, bytes):
-                        zipf.writestr(layer_filename, layer_content)
-                    else:
-                        # Fallback for other types
-                        zipf.writestr(layer_filename, str(layer_content).encode('utf-8'))
-            
-            print(f"[EXTRACT] Created ZIP file: {zip_filename}")
-            
-            # Set the output path to the ZIP file
-            output_path = zip_path
-            output_filename = zip_filename
-            
-        else:
-            # Single layer extraction - proceed with normal logic
-            update_job_status(operation_id, "processing", 80, "Saving extracted data")
-            
-            # Determine if this is a text message vs a file based on multiple criteria
-            # Check both filename patterns and content characteristics
-            is_text_message = (
-                # Known text message filenames
-                original_filename in ["extracted_message.txt", "embedded_text.txt", "hidden_data.txt"] or
-                # Generic text filenames that should be treated as text
-                (original_filename and original_filename.endswith('.txt') and 
-                 not original_filename.startswith('content_')) or
-                # Check if bytes content is actually decodable UTF-8 text
-                (isinstance(extracted_data, bytes) and _is_likely_text_content(extracted_data))
-            )
-            
-            # Save extracted data
-            if original_filename and original_filename.strip():
-                # Use the original filename as provided by the steganography module
-                output_filename = original_filename
-                # Basic sanitization - only remove truly problematic characters
-                import re
-                output_filename = re.sub(r'[<>:"/\\|?*]', '_', output_filename)
+        # Handle new multi-layer response format
+        if isinstance(extraction_result, dict):
+            # Multi-layer steganography response
+            if extraction_result.get('multi_layer_extraction', False):
+                print(f"[MULTI-LAYER] Detected multi-layer extraction: {extraction_result.get('total_layers_extracted', 0)} layers")
                 
-                # Ensure we have a valid filename with proper extension
-                if not output_filename or output_filename.startswith('.') or len(output_filename.strip()) == 0:
-                    # Extract extension from original filename if possible
-                    original_ext = Path(original_filename).suffix if original_filename else ".bin"
-                    output_filename = f"extracted_file_{int(time.time())}{original_ext}"
-                elif '.' not in output_filename:
-                    # If filename has no extension, add .txt for text or .bin for binary
+                # The zip file is already created by the multi-layer module
+                zip_path = extraction_result.get('zip_file')
+                if zip_path and os.path.exists(zip_path):
+                    zip_filename = os.path.basename(zip_path)
+                    
+                    # Move zip file to output directory if it's not already there
+                    final_zip_path = OUTPUT_DIR / zip_filename
+                    if zip_path != str(final_zip_path):
+                        import shutil
+                        shutil.move(zip_path, final_zip_path)
+                    
+                    output_files = [str(final_zip_path)]
+                    
+                    # Create proper result format for multi-layer extraction
+                    processing_time = time.time() - start_time
+                    
+                    result = {
+                        "output_file": str(final_zip_path),
+                        "filename": zip_filename,
+                        "extracted_filename": zip_filename,  # Frontend expects this field
+                        "file_size": os.path.getsize(final_zip_path),
+                        "processing_time": processing_time,
+                        "content_type": "application/zip",  # Frontend expects this field
+                        "data_type": "zip",
+                        "preview": f"Multi-layer ZIP containing {extraction_result.get('total_layers_extracted', 0)} layers",
+                        "text_content": extraction_result.get('extracted_data', ''),  # Frontend expects this field
+                        "original_filename": zip_filename,
+                        # Multi-layer specific fields
+                        "is_multi_layer": True,
+                        "multi_layer_extraction": True,
+                        "total_layers_extracted": extraction_result.get('total_layers_extracted', 0),
+                        "layer_details": extraction_result.get('layer_details', [])
+                    }
+                    
+                    update_job_status(
+                        operation_id,
+                        "completed",
+                        100,
+                        f"Multi-layer extraction completed: {extraction_result.get('total_layers_extracted', 0)} layers extracted",
+                        result=result
+                    )
+                    
+                    return
+                else:
+                    raise Exception("Multi-layer extraction failed - zip file not created")
+            
+            elif extraction_result.get('single_extraction', False):
+                # Single layer from multi-layer capable module
+                print(f"[MULTI-LAYER] Single layer extraction from multi-layer file")
+                extracted_data = extraction_result.get('extracted_data', '')
+                original_filename = extraction_result.get('filename', 'extracted_data.txt')
+                output_path = extraction_result.get('saved_to')
+                
+                if output_path and os.path.exists(output_path):
+                    final_output_path = output_path
+                else:
+                    # Fallback: save the extracted data
+                    safe_filename = sanitize_filename(original_filename)
+                    final_output_path = OUTPUT_DIR / safe_filename
+                    
                     if isinstance(extracted_data, str):
-                        output_filename = f"{output_filename}.txt"
-                    else:
-                        output_filename = f"{output_filename}.bin"
-            else:
-                # Fallback to generic filename
-                if isinstance(extracted_data, str):
-                    output_filename = f"extracted_text_{int(time.time())}.txt"
-                else:
-                    output_filename = f"extracted_file_{int(time.time())}.bin"
-            
-            output_path = OUTPUT_DIR / output_filename
-            
-            # Save the file based on data type and whether it's a text message
-            if isinstance(extracted_data, str):
-                # String data - always save as text
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(extracted_data)
-            elif isinstance(extracted_data, bytes):
-                if is_text_message:
-                    # This is a text message returned as bytes - decode and save as text
-                    try:
-                        decoded_text = extracted_data.decode('utf-8')
-                        with open(output_path, "w", encoding="utf-8") as f:
-                            f.write(decoded_text)
-                    except UnicodeDecodeError:
-                        # If decoding fails, save as binary anyway
-                        with open(output_path, "wb") as f:
+                        with open(final_output_path, 'w', encoding='utf-8') as f:
                             f.write(extracted_data)
-                else:
-                    # This is file content - save as binary to preserve format
-                    with open(output_path, "wb") as f:
-                        f.write(extracted_data)
-            else:
-                raise Exception(f"Unexpected extracted data type: {type(extracted_data)}")
-        
-        # Calculate processing time
-        processing_time = time.time() - start_time
-        
-        # Log completion in database
-        if db and user_id and db_operation_id:
-            if isinstance(extracted_data, str):
-                preview = extracted_data[:100]
-            elif isinstance(extracted_data, bytes):
-                # Try to decode bytes for preview if it's text content
-                if _is_likely_text_content(extracted_data):
-                    try:
-                        decoded_preview = extracted_data.decode('utf-8')[:100]
-                        preview = decoded_preview
-                    except UnicodeDecodeError:
-                        preview = f"Binary file ({len(extracted_data)} bytes)"
+                    else:
+                        with open(final_output_path, 'wb') as f:
+                            f.write(extracted_data)
+                
+                # Create proper result format for single extraction
+                processing_time = time.time() - start_time
+                
+                # Determine content type and preview
+                if isinstance(extracted_data, str):
+                    preview = extracted_data[:200]
+                    data_type = "text"
+                    text_content = extracted_data
                 else:
                     preview = f"Binary file ({len(extracted_data)} bytes)"
-            else:
-                preview = f"Unknown data type: {type(extracted_data)}"
+                    data_type = "binary"
+                    text_content = None
+                
+                result = {
+                    "output_file": str(final_output_path),
+                    "filename": os.path.basename(final_output_path),
+                    "extracted_filename": original_filename,  # Frontend expects this field
+                    "file_size": os.path.getsize(final_output_path),
+                    "processing_time": processing_time,
+                    "content_type": data_type,  # Frontend expects this field
+                    "data_type": data_type,
+                    "preview": preview,
+                    "text_content": text_content,  # Frontend expects this field
+                    "original_filename": original_filename
+                }
+                
+                update_job_status(
+                    operation_id,
+                    "completed",
+                    100,
+                    "Single layer extraction completed successfully",
+                    result=result
+                )
+                
+                # Cleanup input file
+                if os.path.exists(stego_file_path):
+                    os.remove(stego_file_path)
+                
+                return
             
-            db.log_operation_complete(
-                db_operation_id,
-                success=True,
-                output_filename=output_filename,
-                file_size=os.path.getsize(output_path),
-                message_preview=preview,
-                processing_time=processing_time
-            )
+            elif extraction_result.get('success', False):
+                # Legacy dict format - should not normally happen with new multi-layer system
+                extracted_data = extraction_result.get('extracted_data', '')
+                original_filename = extraction_result.get('filename', 'extracted_data.txt') 
+                output_path = extraction_result.get('saved_to')
+                
+                if output_path and os.path.exists(output_path):
+                    final_output_path = output_path
+                else:
+                    # Fallback: save the extracted data
+                    safe_filename = sanitize_filename(original_filename or 'extraction_result.txt')
+                    final_output_path = OUTPUT_DIR / safe_filename
+                    
+                    with open(final_output_path, 'w', encoding='utf-8') as f:
+                        f.write(str(extracted_data))
+                
+                # Create proper result format for legacy extraction
+                processing_time = time.time() - start_time
+                
+                result = {
+                    "output_file": str(final_output_path),
+                    "filename": os.path.basename(final_output_path),
+                    "extracted_filename": original_filename,  # Frontend expects this field
+                    "file_size": os.path.getsize(final_output_path),
+                    "processing_time": processing_time,
+                    "content_type": "text",  # Frontend expects this field
+                    "data_type": "text",
+                    "preview": str(extracted_data)[:200],
+                    "text_content": str(extracted_data),  # Frontend expects this field
+                    "original_filename": original_filename
+                }
+                
+                update_job_status(
+                    operation_id,
+                    "completed", 
+                    100,
+                    "Legacy extraction completed successfully",
+                    result=result
+                )
+                
+                # Cleanup input file
+                if os.path.exists(stego_file_path):
+                    os.remove(stego_file_path)
+                
+                return
+            
+            else:
+                raise Exception("Extraction failed - invalid response format")
         
-        # Update job status with result
-        # Generate proper preview based on content type
-        preview = None
-        data_type = "binary"
-        
-        if isinstance(extracted_data, str):
-            preview = extracted_data[:200]
-            data_type = "text"
-        elif isinstance(extracted_data, bytes):
-            if _is_likely_text_content(extracted_data):
-                try:
-                    preview = extracted_data.decode('utf-8')[:200]
-                    data_type = "text"
-                except UnicodeDecodeError:
+        # Handle tuple return (data, filename) from legacy managers
+        elif isinstance(extraction_result, tuple):
+            extracted_data, original_filename = extraction_result
+            print(f"[DEBUG EXTRACT] Tuple unpacked - data type: {type(extracted_data)}, filename: {original_filename}")
+            
+            # Save extracted data to file
+            safe_filename = sanitize_filename(original_filename or 'extracted_data.txt')
+            output_path = OUTPUT_DIR / safe_filename
+            
+            if isinstance(extracted_data, str):
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(extracted_data)
+                text_content = extracted_data
+                preview = extracted_data[:200]
+                data_type = "text"
+            elif isinstance(extracted_data, bytes):
+                with open(output_path, 'wb') as f:
+                    f.write(extracted_data)
+                if _is_likely_text_content(extracted_data):
+                    try:
+                        text_content = extracted_data.decode('utf-8')
+                        preview = text_content[:200]
+                        data_type = "text"
+                    except UnicodeDecodeError:
+                        text_content = None
+                        preview = f"Binary file ({len(extracted_data)} bytes)"
+                        data_type = "binary"
+                else:
+                    text_content = None
                     preview = f"Binary file ({len(extracted_data)} bytes)"
                     data_type = "binary"
             else:
-                preview = f"Binary file ({len(extracted_data)} bytes)"
-                data_type = "binary"
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(str(extracted_data))
+                text_content = str(extracted_data)
+                preview = text_content[:200]
+                data_type = "text"
+            
+            # Create proper result format for tuple extraction
+            processing_time = time.time() - start_time
+            
+            result = {
+                "output_file": str(output_path),
+                "filename": os.path.basename(output_path),
+                "extracted_filename": original_filename,  # Frontend expects this field
+                "file_size": os.path.getsize(output_path),
+                "processing_time": processing_time,
+                "content_type": data_type,  # Frontend expects this field
+                "data_type": data_type,
+                "preview": preview,
+                "text_content": text_content,  # Frontend expects this field
+                "original_filename": original_filename
+            }
+            
+            update_job_status(
+                operation_id,
+                "completed",
+                100,
+                "Tuple extraction completed successfully", 
+                result=result
+            )
+            
+            # Cleanup input file
+            if os.path.exists(stego_file_path):
+                os.remove(stego_file_path)
+                
+            return
         
-        result = {
-            "output_file": str(output_path),
-            "filename": output_filename,
-            "file_size": os.path.getsize(output_path),
-            "processing_time": processing_time,
-            "data_type": data_type,
-            "preview": preview,
-            "original_filename": original_filename
-        }
+        # Handle direct data return
+        else:
+            extracted_data = extraction_result
+            original_filename = 'extracted_data.txt'
+            print(f"[DEBUG EXTRACT] Direct result - data type: {type(extracted_data)}")
+            
+            # Save extracted data to file
+            safe_filename = sanitize_filename(original_filename)
+            output_path = OUTPUT_DIR / safe_filename
+            
+            if isinstance(extracted_data, str):
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(extracted_data)
+                text_content = extracted_data
+                preview = extracted_data[:200]
+                data_type = "text"
+            elif isinstance(extracted_data, bytes):
+                with open(output_path, 'wb') as f:
+                    f.write(extracted_data)
+                if _is_likely_text_content(extracted_data):
+                    try:
+                        text_content = extracted_data.decode('utf-8')
+                        preview = text_content[:200]
+                        data_type = "text"
+                    except UnicodeDecodeError:
+                        text_content = None
+                        preview = f"Binary file ({len(extracted_data)} bytes)"
+                        data_type = "binary"
+                else:
+                    text_content = None
+                    preview = f"Binary file ({len(extracted_data)} bytes)"
+                    data_type = "binary"
+            else:
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(str(extracted_data))
+                text_content = str(extracted_data)
+                preview = text_content[:200]
+                data_type = "text"
+            
+            # Create proper result format for direct extraction
+            processing_time = time.time() - start_time
+            
+            result = {
+                "output_file": str(output_path),
+                "filename": os.path.basename(output_path),
+                "extracted_filename": original_filename,  # Frontend expects this field
+                "file_size": os.path.getsize(output_path),
+                "processing_time": processing_time,
+                "content_type": data_type,  # Frontend expects this field
+                "data_type": data_type,
+                "preview": preview,
+                "text_content": text_content,  # Frontend expects this field
+                "original_filename": original_filename
+            }
+            
+            update_job_status(
+                operation_id,
+                "completed",
+                100,
+                "Direct extraction completed successfully",
+                result=result
+            )
+            
+            # Cleanup input file
+            if os.path.exists(stego_file_path):
+                os.remove(stego_file_path)
+                
+            return
         
-        update_job_status(operation_id, "completed", 100, "Extraction completed successfully", result=result)
-        
-        # Cleanup input file
-        os.remove(stego_file_path)
+        # This line should never be reached since all extraction paths return early
+        raise Exception("Unexpected code path reached in extraction processing")
         
     except Exception as e:
         error_msg = translate_error_message(str(e), carrier_type)
