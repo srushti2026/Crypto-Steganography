@@ -803,6 +803,11 @@ const ForensicEvidence = () => {
 
     const poll = async () => {
       try {
+        if (!operationId || operationId === 'undefined') {
+          console.error('Invalid operation ID for polling:', operationId);
+          return;
+        }
+        
         const response = await fetch(`${API_BASE_URL}/operations/${operationId}/status`);
         if (!response.ok) throw new Error('Failed to check status');
         
@@ -994,6 +999,11 @@ const ForensicEvidence = () => {
     try {
       console.log("🔽 Attempting download for operation:", currentOperationId);
       
+      if (!currentOperationId || currentOperationId === 'undefined') {
+        toast.error("Invalid operation ID for download");
+        return;
+      }
+      
       // First try to get the latest status to ensure we have the result
       const statusResponse = await fetch(`${API_BASE_URL}/operations/${currentOperationId}/status`);
       if (statusResponse.ok) {
@@ -1054,6 +1064,11 @@ const ForensicEvidence = () => {
 
     try {
       console.log("🔽 Attempting Save As download for operation:", currentOperationId);
+      
+      if (!currentOperationId || currentOperationId === 'undefined') {
+        toast.error("Invalid operation ID for download");
+        return;
+      }
       
       // First try to get the latest status to ensure we have the result
       const statusResponse = await fetch(`${API_BASE_URL}/operations/${currentOperationId}/status`);

@@ -501,6 +501,11 @@ export default function CopyrightProtection() {
 
     const poll = async () => {
       try {
+        if (!operationId || operationId === 'undefined') {
+          console.error('Invalid operation ID for polling:', operationId);
+          return;
+        }
+        
         attempts++;
         const response = await fetch(`${API_BASE_URL}/operations/${operationId}/status`);
         

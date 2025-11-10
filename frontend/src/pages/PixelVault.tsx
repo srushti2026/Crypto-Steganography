@@ -650,6 +650,11 @@ export default function PixelVault() {
  
  // First check immediately in case extraction completed very quickly
  try {
+ if (!data.operation_id || data.operation_id === 'undefined') {
+ console.error('Invalid operation ID for extraction status check');
+ return;
+ }
+ 
  const immediateStatusResponse = await fetch(`${API_BASE_URL}/api/operations/${data.operation_id}/status`);
  if (immediateStatusResponse.ok) {
  const immediateStatusData = await immediateStatusResponse.json();
@@ -687,6 +692,12 @@ export default function PixelVault() {
  
  const pollInterval = setInterval(async () => {
  try {
+ if (!data.operation_id || data.operation_id === 'undefined') {
+ console.error('Invalid operation ID for polling, stopping interval');
+ clearInterval(pollInterval);
+ return;
+ }
+ 
  pollCount++;
  console.log(`[EXTRACTION POLL] Attempt ${pollCount}/${maxPolls} - Checking operation: ${data.operation_id}`);
  
@@ -734,6 +745,11 @@ export default function PixelVault() {
  console.log('[EXTRACTION POLL] Max polls reached, final status check...');
  
  try {
+ if (!data.operation_id || data.operation_id === 'undefined') {
+ console.error('Invalid operation ID for final status check');
+ return;
+ }
+ 
  const finalStatusResponse = await fetch(`${API_BASE_URL}/api/operations/${data.operation_id}/status`);
  if (finalStatusResponse.ok) {
  const finalStatusData = await finalStatusResponse.json();

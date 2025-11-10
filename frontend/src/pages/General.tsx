@@ -1022,6 +1022,11 @@ export default function General() {
 
     const poll = async () => {
       try {
+        if (!operationId || operationId === 'undefined') {
+          console.error('Invalid operation ID for polling:', operationId);
+          return;
+        }
+        
         const response = await fetch(`${API_BASE_URL}/operations/${operationId}/status`);
         if (!response.ok) throw new Error('Failed to check status');
         
