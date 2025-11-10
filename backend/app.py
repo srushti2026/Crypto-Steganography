@@ -134,6 +134,32 @@ except ImportError as e:
 # PYDANTIC MODELS
 # ============================================================================
 
+# Text-to-Image Generation imports
+try:
+    from dotenv import load_dotenv
+    from huggingface_hub import InferenceClient
+    
+    # Load environment variables for text-to-image
+    load_dotenv()
+    HF_TOKEN = os.getenv("HF_TOKEN")
+    
+    # Initialize Hugging Face Inference Client for text-to-image
+    text_to_image_client = InferenceClient(
+        model="black-forest-labs/FLUX.1-schnell",
+        api_key=HF_TOKEN,
+        provider="nebius"
+    ) if HF_TOKEN else None
+    
+    print("[OK] Text-to-image functionality loaded")
+except ImportError as e:
+    print(f"[WARNING] Text-to-image functionality not available: {e}")
+    text_to_image_client = None
+
+class TextToImageRequest(BaseModel):
+    prompt: str = Field(..., description="Text prompt for image generation")
+    project_name: Optional[str] = Field(None, description="Project name")
+    project_description: Optional[str] = Field(None, description="Project description")
+
 class UserModel(BaseModel):
     email: str = Field(..., description="User email address")
     username: str = Field(..., description="Username")
@@ -245,6 +271,37 @@ def generate_unique_filename(original_filename: str, prefix: str = "") -> str:
     unique_id = str(uuid.uuid4())[:8]
     name, ext = os.path.splitext(original_filename)
     return f"{prefix}{name}_{timestamp}_{unique_id}{ext}"
+
+def generate_clean_output_filename(original_filename: str, prefix: str = "stego_") -> str:
+    """Generate clean, user-friendly output filename"""
+    name, ext = os.path.splitext(original_filename)
+    
+    # Clean the name - remove any existing prefixes and timestamps
+    clean_name = name
+    
+    # Remove common prefixes
+    for old_prefix in ['stego_', 'carrier_', 'content_']:
+        clean_name = clean_name.replace(old_prefix, '')
+    
+    # Remove timestamp_uuid patterns
+    import re
+    clean_name = re.sub(r'_\d{10}_[a-f0-9]{8}', '', clean_name)
+    
+    # Remove any leading/trailing underscores
+    clean_name = clean_name.strip('_')
+    
+    # Ensure we have a name
+    if not clean_name:
+        clean_name = 'image'
+    
+    # If no extension, default to .png for images
+    if not ext:
+        ext = '.png'
+    
+    # Generate a simple unique suffix
+    unique_suffix = str(uuid.uuid4())[:6]
+    
+    return f"{prefix}{clean_name}_{unique_suffix}{ext}"
 
 def get_file_hash(file_path: str) -> str:
     """Calculate MD5 hash of file"""
@@ -926,6 +983,73 @@ async def create_project(project: ProjectRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
+# TEXT-TO-IMAGE GENERATION ENDPOINTS
+# ============================================================================
+
+@app.post("/api/generate-image", response_model=Dict[str, Any])
+async def generate_image_from_text(request: TextToImageRequest):
+    """Generate an image from text prompt using FLUX.1-schnell model"""
+    try:
+        if not text_to_image_client:
+            raise HTTPException(
+                status_code=503,
+                detail="Text-to-image service is not available. Please check HF_TOKEN configuration."
+            )
+        
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        operation_id = str(uuid.uuid4())
+        filename = f"generated_{timestamp}_{operation_id}.png"
+        
+        # Create output path
+        output_path = OUTPUT_DIR / filename
+        OUTPUT_DIR.mkdir(exist_ok=True)
+        
+        try:
+            # Generate image using Hugging Face API
+            image = text_to_image_client.text_to_image(request.prompt)
+            
+            # Save the generated image
+            image.save(str(output_path))
+            
+            # Create project data if project name is provided
+            project_data = None
+            if request.project_name:
+                project_id = str(uuid.uuid4())
+                project_dir = OUTPUT_DIR / project_id
+                project_dir.mkdir(exist_ok=True)
+                
+                project_data = {
+                    "id": project_id,
+                    "name": request.project_name,
+                    "description": request.project_description or f"Generated image from prompt: {request.prompt[:50]}...",
+                    "type": "pixelvault",
+                    "created_at": datetime.now().isoformat(),
+                    "directory": str(project_dir),
+                    "generated_image": filename,
+                    "prompt": request.prompt
+                }
+            
+            return {
+                "success": True,
+                "operation_id": operation_id,
+                "message": "Image generated successfully",
+                "image_filename": filename,
+                "image_url": f"/api/download/{filename}",
+                "prompt": request.prompt,
+                "project": project_data
+            }
+            
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Image generation failed: {str(e)}"
+            )
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
 # STEGANOGRAPHY ENDPOINTS
 # ============================================================================
 
@@ -1005,6 +1129,8 @@ async def embed_data(
                 raise HTTPException(status_code=400, detail=f"Unsupported file format: {file_extension}")
         
         print(f"[API] Detected carrier type: {carrier_type} for file: {carrier_file.filename}")
+        print(f"[API] Original filename: {carrier_file.filename}")
+        print(f"[API] File extension: {Path(carrier_file.filename).suffix.lower()}")
         
         # Validate inputs
         if content_type == "text" and not text_content:
@@ -1027,9 +1153,34 @@ async def embed_data(
         carrier_filename = generate_unique_filename(carrier_file.filename, "carrier_")
         carrier_path = UPLOAD_DIR / carrier_filename
         
+        print(f"[API] Generated carrier filename: {carrier_filename}")
+        print(f"[API] Carrier path: {carrier_path}")
+        
+        # Read carrier file content and save it
+        content = await carrier_file.read()
         with open(carrier_path, "wb") as f:
-            content = await carrier_file.read()
             f.write(content)
+            
+        print(f"[API] Carrier file saved successfully: {os.path.getsize(carrier_path)} bytes")
+        
+        # If the uploaded filename lacked an extension, try to detect it from the binary
+        if not carrier_path.suffix:
+            detected_ext = detect_file_format_from_binary(content)
+            if detected_ext:
+                # Rename carrier file to include the detected extension
+                new_carrier_filename = f"{carrier_path.name}{detected_ext}"
+                new_carrier_path = UPLOAD_DIR / new_carrier_filename
+                try:
+                    os.rename(carrier_path, new_carrier_path)
+                    carrier_path = new_carrier_path
+                    carrier_filename = carrier_path.name
+                    print(f"[API] Renamed carrier file to include detected extension: {carrier_filename}")
+                except Exception as e:
+                    print(f"[API] Failed to rename carrier file to add extension: {e}")
+            else:
+                print(f"[API] Could not detect file format for extensionless file")
+        else:
+            print(f"[API] Carrier file already has extension: {carrier_path.suffix}")
         
         # Save content file if provided
         content_file_path = None
@@ -1065,7 +1216,14 @@ async def embed_data(
         
         # Start background processing with file paths instead of UploadFile objects
         # Generate output filename early so we can return it in the response
-        expected_output_filename = generate_unique_filename(carrier_filename, "stego_")
+        # Use clean filename generation for better user experience
+        # Use the actual saved carrier filename (may have been renamed to include extension)
+        expected_output_filename = generate_clean_output_filename(carrier_filename, "stego_")
+        
+        print(f"[API] Expected output filename: {expected_output_filename}")
+        print(f"[API] Output extension: {Path(expected_output_filename).suffix}")
+        print(f"[API] Original carrier filename: {carrier_file.filename}")
+        print(f"[API] Generated carrier filename: {carrier_filename}")
         
         background_tasks.add_task(
             process_embed_operation,
@@ -1319,13 +1477,13 @@ async def embed_data_batch(
                         password=password
                     )
                 
-                # Generate expected output filename
-                expected_output_filename = generate_unique_filename(carrier_filename, "stego_")
+                # Generate expected output filename from actual saved carrier filename with clean naming
+                expected_output_filename = generate_clean_output_filename(carrier_filename, "stego_")
                 
                 # Add to batch tracking
                 batch_jobs["individual_operations"].append({
                     "operation_id": individual_operation_id,
-                    "carrier_filename": carrier_file.filename,
+                    "carrier_filename": carrier_filename,
                     "carrier_type": carrier_type,
                     "status": "pending",
                     "expected_output": expected_output_filename
@@ -2118,9 +2276,14 @@ async def process_embed_operation(
         carrier_filename = Path(carrier_file_path).name
         if expected_output_filename:
             output_filename = expected_output_filename
+            print(f"[EMBED] Using expected output filename: {output_filename}")
         else:
-            output_filename = generate_unique_filename(carrier_filename, "stego_")
+            # Fallback: use clean filename generation
+            output_filename = generate_clean_output_filename(carrier_filename, "stego_")
+            print(f"[EMBED] Generated fallback output filename: {output_filename}")
         output_path = OUTPUT_DIR / output_filename
+        
+        print(f"[EMBED] Final output path: {output_path}")
         
         # Perform embedding
         # After layered container creation, content_type might have been changed to "text"
@@ -3050,6 +3213,7 @@ async def process_extract_operation(
                         "preview": f"Multi-layer ZIP containing {extraction_result.get('total_layers_extracted', 0)} layers",
                         "text_content": extraction_result.get('extracted_data', ''),  # Frontend expects this field
                         "original_filename": zip_filename,
+                        "download_url": f"/api/operations/{operation_id}/download",  # Frontend expects this field
                         # Multi-layer specific fields
                         "is_multi_layer": True,
                         "multi_layer_extraction": True,
@@ -3073,7 +3237,10 @@ async def process_extract_operation(
                 # Single layer from multi-layer capable module
                 print(f"[MULTI-LAYER] Single layer extraction from multi-layer file")
                 extracted_data = extraction_result.get('extracted_data', '')
-                original_filename = extraction_result.get('filename', 'extracted_data.txt')
+                # Detect proper filename from content if not provided
+                original_filename = extraction_result.get('filename')
+                if not original_filename:
+                    original_filename = detect_filename_from_content(extracted_data)
                 output_path = extraction_result.get('saved_to')
                 
                 if output_path and os.path.exists(output_path):
@@ -3113,7 +3280,8 @@ async def process_extract_operation(
                     "data_type": data_type,
                     "preview": preview,
                     "text_content": text_content,  # Frontend expects this field
-                    "original_filename": original_filename
+                    "original_filename": original_filename,
+                    "download_url": f"/api/operations/{operation_id}/download"  # Frontend expects this field
                 }
                 
                 update_job_status(
@@ -3133,14 +3301,19 @@ async def process_extract_operation(
             elif extraction_result.get('success', False):
                 # Legacy dict format - should not normally happen with new multi-layer system
                 extracted_data = extraction_result.get('extracted_data', '')
-                original_filename = extraction_result.get('filename', 'extracted_data.txt') 
+                # Detect proper filename from content if not provided
+                original_filename = extraction_result.get('filename')
+                if not original_filename:
+                    original_filename = detect_filename_from_content(extracted_data) 
                 output_path = extraction_result.get('saved_to')
                 
                 if output_path and os.path.exists(output_path):
                     final_output_path = output_path
                 else:
                     # Fallback: save the extracted data
-                    safe_filename = sanitize_filename(original_filename or 'extraction_result.txt')
+                    if not original_filename:
+                        original_filename = detect_filename_from_content(extracted_data)
+                    safe_filename = sanitize_filename(original_filename)
                     final_output_path = OUTPUT_DIR / safe_filename
                     
                     with open(final_output_path, 'w', encoding='utf-8') as f:
@@ -3159,7 +3332,8 @@ async def process_extract_operation(
                     "data_type": "text",
                     "preview": str(extracted_data)[:200],
                     "text_content": str(extracted_data),  # Frontend expects this field
-                    "original_filename": original_filename
+                    "original_filename": original_filename,
+                    "download_url": f"/api/operations/{operation_id}/download"  # Frontend expects this field
                 }
                 
                 update_job_status(
@@ -3184,8 +3358,12 @@ async def process_extract_operation(
             extracted_data, original_filename = extraction_result
             print(f"[DEBUG EXTRACT] Tuple unpacked - data type: {type(extracted_data)}, filename: {original_filename}")
             
+            # Detect proper filename from content if not provided or generic
+            if not original_filename or original_filename in ['extracted_data.txt', 'extracted_data.bin']:
+                original_filename = detect_filename_from_content(extracted_data)
+            
             # Save extracted data to file
-            safe_filename = sanitize_filename(original_filename or 'extracted_data.txt')
+            safe_filename = sanitize_filename(original_filename)
             output_path = OUTPUT_DIR / safe_filename
             
             if isinstance(extracted_data, str):
@@ -3230,7 +3408,8 @@ async def process_extract_operation(
                 "data_type": data_type,
                 "preview": preview,
                 "text_content": text_content,  # Frontend expects this field
-                "original_filename": original_filename
+                "original_filename": original_filename,
+                "download_url": f"/api/operations/{operation_id}/download"  # Frontend expects this field
             }
             
             update_job_status(
@@ -3250,8 +3429,9 @@ async def process_extract_operation(
         # Handle direct data return
         else:
             extracted_data = extraction_result
-            original_filename = 'extracted_data.txt'
-            print(f"[DEBUG EXTRACT] Direct result - data type: {type(extracted_data)}")
+            # Detect proper filename from content instead of defaulting to txt
+            original_filename = detect_filename_from_content(extracted_data)
+            print(f"[DEBUG EXTRACT] Direct result - data type: {type(extracted_data)}, detected filename: {original_filename}")
             
             # Save extracted data to file
             safe_filename = sanitize_filename(original_filename)
@@ -3299,7 +3479,8 @@ async def process_extract_operation(
                 "data_type": data_type,
                 "preview": preview,
                 "text_content": text_content,  # Frontend expects this field
-                "original_filename": original_filename
+                "original_filename": original_filename,
+                "download_url": f"/api/operations/{operation_id}/download"  # Frontend expects this field
             }
             
             update_job_status(
@@ -3405,11 +3586,29 @@ async def download_file_by_name(filename: str):
     
     media_type = media_type_map.get(file_ext, 'application/octet-stream')
     
-    return FileResponse(
+    # Debug: Log file info
+    print(f"[DOWNLOAD] File: {filename}")
+    print(f"[DOWNLOAD] Extension: {file_ext}")
+    print(f"[DOWNLOAD] Media Type: {media_type}")
+    print(f"[DOWNLOAD] File Size: {output_file.stat().st_size} bytes")
+    
+    # Create FileResponse with proper headers for download
+    response = FileResponse(
         path=str(output_file),
         filename=filename,
         media_type=media_type
     )
+    
+    # Ensure Content-Disposition header is set properly for proper downloading
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    
+    # Add additional headers to ensure proper file handling
+    response.headers["Content-Type"] = media_type
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    
+    return response
 
 # ============================================================================
 # HEALTH AND STATUS ENDPOINTS

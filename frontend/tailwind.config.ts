@@ -53,6 +53,23 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				success: {
+					DEFAULT: 'hsl(var(--success))',
+					foreground: 'hsl(var(--success-foreground))'
+				},
+				// Aether Blue Theme Colors
+				aether: {
+					blue: '#1E88E5',
+					cyan: '#00B8D9',
+					'bg-light': '#F7FAFC',
+					'bg-dark': '#0D1B2A',
+					'card-light': '#FFFFFF',
+					'card-dark': '#1B263B',
+					'text-light': '#0B132B',
+					'text-dark': '#E0E6ED',
+					success: '#22C55E'
+				},
+				// Legacy colors for compatibility
 				sea: {
 					light: '#E0F2F7',
 					DEFAULT: '#1E88E5',

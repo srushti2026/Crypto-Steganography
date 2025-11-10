@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS projects (
     user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
     name text NOT NULL,
     description text,
-    project_type text DEFAULT 'general' CHECK (project_type IN ('general', 'copyright', 'forensic')),
+    project_type text DEFAULT 'general' CHECK (project_type IN ('general', 'copyright', 'forensic', 'pixelvault')),
     settings jsonb DEFAULT '{}',
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()

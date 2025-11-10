@@ -1,5 +1,6 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,65 +8,73 @@
 
 @layer base {
   :root {
-    --background: 210 55% 97%;
-    --foreground: 220 40% 15%;
+    /* Aether Blue Light Mode */
+    --background: 214 100% 97%; /* #F7FAFC */
+    --foreground: 219 96% 8%; /* #0B132B */
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 40% 15%;
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 219 96% 8%; /* #0B132B */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 40% 15%;
+    --popover: 0 0% 100%; /* #FFFFFF */
+    --popover-foreground: 219 96% 8%; /* #0B132B */
 
-    --primary: 210 95% 45%;
+    --primary: 207 80% 52%; /* #1E88E5 */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 280 60% 92%;
-    --secondary-foreground: 280 70% 25%;
+    --secondary: 188 100% 42%; /* #00B8D9 */
+    --secondary-foreground: 219 96% 8%;
 
-    --muted: 200 45% 94%;
-    --muted-foreground: 200 25% 45%;
+    --muted: 214 43% 92%; /* Light gray-blue */
+    --muted-foreground: 214 25% 45%;
 
-    --accent: 210 75% 92%;
-    --accent-foreground: 210 70% 30%;
+    --accent: 188 100% 42%; /* #00B8D9 */
+    --accent-foreground: 219 96% 8%;
 
     --destructive: 0 85% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 30% 88%;
-    --input: 210 30% 90%;
-    --ring: 210 95% 45%;
+    --success: 142 71% 45%; /* #22C55E */
+    --success-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 94%;
+    --ring: 207 80% 52%; /* #1E88E5 */
 
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 210 30% 12%;
-    --foreground: 210 20% 98%;
+    /* Aether Blue Dark Mode */
+    --background: 212 92% 8%; /* #0D1B2A */
+    --foreground: 211 25% 84%; /* #E0E6ED */
 
-    --card: 210 30% 15%;
-    --card-foreground: 210 20% 98%;
+    --card: 212 65% 12%; /* #1B263B */
+    --card-foreground: 211 25% 84%; /* #E0E6ED */
 
-    --popover: 210 30% 15%;
-    --popover-foreground: 210 20% 98%;
+    --popover: 212 65% 12%; /* #1B263B */
+    --popover-foreground: 211 25% 84%; /* #E0E6ED */
 
-    --primary: 210 100% 50%;
+    --primary: 207 80% 52%; /* #1E88E5 */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 30% 20%;
-    --secondary-foreground: 210 20% 98%;
+    --secondary: 188 100% 42%; /* #00B8D9 */
+    --secondary-foreground: 219 96% 8%;
 
-    --muted: 210 30% 20%;
-    --muted-foreground: 210 20% 60%;
+    --muted: 212 50% 20%;
+    --muted-foreground: 211 15% 65%;
 
-    --accent: 210 30% 20%;
-    --accent-foreground: 210 20% 98%;
+    --accent: 188 100% 42%; /* #00B8D9 */
+    --accent-foreground: 219 96% 8%;
 
     --destructive: 0 70% 50%;
-    --destructive-foreground: 210 20% 98%;
+    --destructive-foreground: 211 25% 84%;
 
-    --border: 210 30% 25%;
-    --input: 210 30% 25%;
-    --ring: 210 100% 60%;
+    --success: 142 71% 45%; /* #22C55E */
+    --success-foreground: 0 0% 100%;
+
+    --border: 212 40% 25%;
+    --input: 212 40% 25%;
+    --ring: 207 80% 52%; /* #1E88E5 */
   }
 }
 
@@ -99,6 +108,31 @@
   
   .glass-card {
     @apply bg-white/70 dark:bg-black/30 backdrop-blur-lg border border-white/20 dark:border-white/10 rounded-xl shadow-lg;
+  }
+
+  /* Aether Blue Interactive Elements */
+  .btn-aether {
+    @apply bg-primary text-primary-foreground rounded-lg px-6 py-3 font-medium transition-all duration-300 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 focus:ring-2 focus:ring-primary/50 active:scale-[0.98];
+  }
+
+  .btn-aether-secondary {
+    @apply bg-secondary text-secondary-foreground rounded-lg px-6 py-3 font-medium transition-all duration-300 hover:bg-secondary/90 hover:shadow-lg hover:shadow-secondary/20 focus:ring-2 focus:ring-secondary/50 active:scale-[0.98];
+  }
+
+  .card-aether {
+    @apply bg-card text-card-foreground rounded-xl border border-border shadow-lg hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 hover:border-primary/30;
+  }
+
+  .input-aether {
+    @apply bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all duration-200;
+  }
+
+  .nav-link-aether {
+    @apply text-muted-foreground hover:text-foreground transition-colors duration-200 hover:bg-accent/50 rounded-lg px-3 py-2;
+  }
+
+  .success-indicator {
+    @apply bg-success text-success-foreground;
   }
   
   .wave-animation {
@@ -240,5 +274,120 @@
   .hover-lift:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Pixel font styling for retro aesthetic with improved clarity */
+  .pixel-font, .pixel-text {
+    font-family: 'Press Start 2P', 'Courier New', monospace !important;
+    /* Improved font rendering for better clarity on modern displays */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-smooth: auto;
+    text-rendering: optimizeLegibility;
+    /* Maintain pixel aesthetic for images */
+    image-rendering: pixelated;
+    /* Prevent subpixel rendering issues */
+    transform: translateZ(0);
+    /* Ensure crisp edges */
+    font-feature-settings: normal;
+    font-variant-ligatures: none;
+  }
+  
+  /* Enhanced pixel text for extraction section with maximum clarity */
+  .pixel-text-extract {
+    font-family: 'Press Start 2P', 'Courier New', monospace !important;
+    -webkit-font-smoothing: subpixel-antialiased;
+    -moz-osx-font-smoothing: auto;
+    text-rendering: optimizeSpeed;
+    font-smooth: always;
+    /* Ensure pixel-perfect rendering */
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    /* Prevent blur from transforms */
+    will-change: transform;
+    /* Better contrast and readability */
+    text-shadow: 0 0 1px rgba(0, 184, 217, 0.3);
+    letter-spacing: 0.05em;
+  }
+  
+  /* Preload Press Start 2P font for better performance */
+  @font-face {
+    font-family: 'Press Start 2P';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(https://fonts.gstatic.com/s/pressstart2p/v15/e3t4euO8T-267oIAQAu6jDQyK3nVivM.woff2) format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  
+  /* Enhanced error toast styling for better visibility */
+  [data-sonner-toast][data-type="error"],
+  .toast[data-variant="destructive"] {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(220, 38, 38, 0.35)) !important;
+    border: 3px solid rgb(239, 68, 68) !important;
+    border-radius: 12px !important;
+    box-shadow: 
+      0 0 25px rgba(239, 68, 68, 0.6), 
+      0 0 50px rgba(239, 68, 68, 0.3),
+      0 8px 32px rgba(0, 0, 0, 0.3) !important;
+    backdrop-filter: blur(12px) !important;
+    padding: 20px !important;
+    min-height: 90px !important;
+    z-index: 9999 !important;
+  }
+  
+  [data-sonner-toast][data-type="error"] [data-title],
+  .toast[data-variant="destructive"] .toast-title {
+    font-family: 'Press Start 2P', 'Courier New', monospace !important;
+    font-size: 15px !important;
+    font-weight: bold !important;
+    color: rgb(248, 113, 113) !important;
+    text-shadow: 
+      0 0 12px rgba(248, 113, 113, 0.9), 
+      0 0 24px rgba(248, 113, 113, 0.5),
+      2px 2px 0 rgba(220, 38, 38, 0.7) !important;
+    letter-spacing: 0.08em !important;
+    margin-bottom: 12px !important;
+    text-transform: uppercase !important;
+  }
+  
+  [data-sonner-toast][data-type="error"] [data-description],
+  .toast[data-variant="destructive"] .toast-description {
+    font-family: 'Press Start 2P', 'Courier New', monospace !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
+    color: rgb(254, 202, 202) !important;
+    text-shadow: 
+      0 0 8px rgba(254, 202, 202, 0.8),
+      0 0 16px rgba(254, 202, 202, 0.4) !important;
+    letter-spacing: 0.05em !important;
+    line-height: 1.8 !important;
+  }
+  
+  /* Enhanced success toast styling to match the theme */
+  [data-sonner-toast][data-type="success"] {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.25), rgba(22, 163, 74, 0.35)) !important;
+    border: 3px solid rgb(34, 197, 94) !important;
+    border-radius: 12px !important;
+    box-shadow: 
+      0 0 25px rgba(34, 197, 94, 0.6), 
+      0 0 50px rgba(34, 197, 94, 0.3),
+      0 8px 32px rgba(0, 0, 0, 0.3) !important;
+    backdrop-filter: blur(12px) !important;
+    padding: 20px !important;
+    min-height: 90px !important;
+  }
+  
+  [data-sonner-toast][data-type="success"] [data-title] {
+    font-family: 'Press Start 2P', 'Courier New', monospace !important;
+    font-size: 15px !important;
+    font-weight: bold !important;
+    color: rgb(74, 222, 128) !important;
+    text-shadow: 
+      0 0 12px rgba(74, 222, 128, 0.9), 
+      0 0 24px rgba(74, 222, 128, 0.5),
+      2px 2px 0 rgba(22, 163, 74, 0.7) !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
   }
 }

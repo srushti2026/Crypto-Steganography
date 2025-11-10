@@ -49,7 +49,7 @@ export default function Home() {
       
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative py-20 bg-gradient-to-br from-primary/10 to-sea-light/20 dark:from-primary/5 dark:to-sea-dark/20 overflow-hidden">
+        <section className="relative py-20 bg-gradient-to-br from-primary/8 via-secondary/5 to-accent/8 dark:from-primary/4 dark:via-secondary/3 dark:to-accent/4 overflow-hidden">
           <div className="container relative z-10 pt-20">
             <div className="text-center max-w-4xl mx-auto">
               <span className="text-sm text-primary font-medium uppercase tracking-wider">
@@ -62,12 +62,13 @@ export default function Home() {
                 Experience the future of steganography with encryption, invisible watermarking, and enterprise-level security. Your sensitive data, hidden in plain sight.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button asChild size="lg" className="btn-primary">
+                <Button asChild size="lg" className="btn-aether shadow-lg hover:shadow-xl hover:shadow-primary/25 bg-gradient-to-r from-primary to-primary/90">
                   <Link to="/dashboard">Start Protecting Data</Link>
                 </Button>
                 <Button 
                   size="lg" 
                   variant="outline"
+                  className="border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 shadow-sm hover:shadow-md transition-all duration-300"
                   onClick={() => {
                     const demoSection = document.getElementById('demo');
                     if (demoSection) {
@@ -87,8 +88,8 @@ export default function Home() {
           
           {/* Decorative elements */}
           <div className="absolute top-0 right-0 w-1/3 h-full opacity-10">
-            <div className="absolute top-10 right-10 w-64 h-64 rounded-full bg-primary/50 blur-3xl animate-pulse-slow" />
-            <div className="absolute bottom-10 right-40 w-48 h-48 rounded-full bg-sea-light blur-3xl animate-pulse-slow [animation-delay:1s]" />
+            <div className="absolute top-10 right-10 w-64 h-64 rounded-full bg-gradient-to-br from-primary to-secondary blur-3xl animate-pulse-slow" />
+            <div className="absolute bottom-10 right-40 w-48 h-48 rounded-full bg-gradient-to-tl from-secondary to-accent blur-3xl animate-pulse-slow [animation-delay:1s]" />
           </div>
         </section>
 
@@ -109,10 +110,10 @@ export default function Home() {
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="text-center animate-fade-in [animation-delay:100ms]">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/10">
                   <FileImage className="h-8 w-8 text-primary" />
                 </div>
-                <div className="bg-primary/5 rounded-full px-4 py-1 inline-block mb-4">
+                <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-full px-4 py-1 inline-block mb-4 border border-primary/20">
                   <span className="text-sm font-semibold text-primary">Step 1</span>
                 </div>
                 <h3 className="text-xl font-semibold mb-3">Upload & Prepare</h3>
@@ -122,11 +123,11 @@ export default function Home() {
               </div>
               
               <div className="text-center animate-fade-in [animation-delay:200ms]">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Shield className="h-8 w-8 text-primary" />
+                <div className="w-16 h-16 bg-gradient-to-br from-secondary/20 to-accent/20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-secondary/10">
+                  <Shield className="h-8 w-8 text-secondary" />
                 </div>
-                <div className="bg-primary/5 rounded-full px-4 py-1 inline-block mb-4">
-                  <span className="text-sm font-semibold text-primary">Step 2</span>
+                <div className="bg-gradient-to-r from-secondary/10 to-accent/10 rounded-full px-4 py-1 inline-block mb-4 border border-secondary/20">
+                  <span className="text-sm font-semibold text-secondary">Step 2</span>
                 </div>
                 <h3 className="text-xl font-semibold mb-3">Encrypt & Embed</h3>
                 <p className="text-muted-foreground">
@@ -135,11 +136,11 @@ export default function Home() {
               </div>
               
               <div className="text-center animate-fade-in [animation-delay:300ms]">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Eye className="h-8 w-8 text-primary" />
+                <div className="w-16 h-16 bg-gradient-to-br from-accent/20 to-primary/20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-accent/10">
+                  <Eye className="h-8 w-8 text-accent" />
                 </div>
-                <div className="bg-primary/5 rounded-full px-4 py-1 inline-block mb-4">
-                  <span className="text-sm font-semibold text-primary">Step 3</span>
+                <div className="bg-gradient-to-r from-accent/10 to-primary/10 rounded-full px-4 py-1 inline-block mb-4 border border-accent/20">
+                  <span className="text-sm font-semibold text-accent">Step 3</span>
                 </div>
                 <h3 className="text-xl font-semibold mb-3">Share & Extract</h3>
                 <p className="text-muted-foreground">
@@ -166,19 +167,19 @@ export default function Home() {
                 </p>
                 <ul className="space-y-3 mb-8">
                   <li className="flex items-center">
-                    <div className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center mr-3">
+                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 text-primary flex items-center justify-center mr-3 shadow-sm">
                       <Zap className="h-3 w-3" />
                     </div>
                     Live steganography process demonstration
                   </li>
                   <li className="flex items-center">
-                    <div className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center mr-3">
+                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-secondary/20 to-accent/20 text-secondary flex items-center justify-center mr-3 shadow-sm">
                       <Lock className="h-3 w-3" />
                     </div>
                     Advanced encryption and security features
                   </li>
                   <li className="flex items-center">
-                    <div className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center mr-3">
+                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-accent/20 to-primary/20 text-accent flex items-center justify-center mr-3 shadow-sm">
                       <Shield className="h-3 w-3" />
                     </div>
                     Real-world use cases and applications

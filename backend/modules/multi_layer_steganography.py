@@ -18,6 +18,89 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 
+def detect_filename_from_content(data):
+    """Detect appropriate filename and extension based on file content"""
+    if not data:
+        return "extracted_file.bin"
+    
+    # Convert to bytes if it's a string
+    if isinstance(data, str):
+        try:
+            data_bytes = data.encode('utf-8')
+        except:
+            return "extracted_file.txt"
+    else:
+        data_bytes = data
+    
+    # Check for common file signatures
+    if data_bytes.startswith(b'\x89PNG\r\n\x1a\n'):
+        return "extracted_image.png"
+    elif data_bytes.startswith(b'\xFF\xD8\xFF'):
+        return "extracted_image.jpg"
+    elif data_bytes.startswith(b'GIF8'):
+        return "extracted_image.gif"
+    elif data_bytes.startswith(b'%PDF'):
+        return "extracted_document.pdf"
+    elif data_bytes.startswith(b'PK\x03\x04'):
+        # Could be ZIP, DOCX, XLSX, etc.
+        if b'word/' in data_bytes[:1024]:
+            return "extracted_document.docx"
+        elif b'xl/' in data_bytes[:1024]:
+            return "extracted_document.xlsx"
+        else:
+            return "extracted_archive.zip"
+    # Audio formats
+    elif data_bytes.startswith(b'RIFF') and b'WAVE' in data_bytes[:20]:
+        return "extracted_audio.wav"
+    elif data_bytes.startswith(b'ID3') or data_bytes.startswith(b'\xFF\xFB') or data_bytes.startswith(b'\xFF\xFA'):
+        return "extracted_audio.mp3"
+    elif data_bytes.startswith(b'fLaC'):
+        return "extracted_audio.flac"
+    elif data_bytes.startswith(b'OggS'):
+        return "extracted_audio.ogg"
+    elif data_bytes.startswith(b'\xFF\xF1') or data_bytes.startswith(b'\xFF\xF9'):
+        return "extracted_audio.aac"
+    elif data_bytes.startswith(b'\x00\x00\x00\x20ftypM4A'):
+        return "extracted_audio.m4a"
+    elif data_bytes.startswith(b'\x30\x26\xB2\x75\x8E\x66\xCF\x11'):
+        return "extracted_audio.wma"
+    
+    # Video formats
+    elif (data_bytes.startswith(b'\x00\x00\x00\x18ftyp') or 
+          data_bytes.startswith(b'\x00\x00\x00\x20ftyp')):
+        # Check specific MP4 variants
+        if b'mp41' in data_bytes[:50] or b'mp42' in data_bytes[:50] or b'isom' in data_bytes[:50]:
+            return "extracted_video.mp4"
+        elif b'M4V' in data_bytes[:50]:
+            return "extracted_video.m4v"
+        elif b'qt' in data_bytes[:50]:
+            return "extracted_video.mov"
+        else:
+            return "extracted_video.mp4"  # Default to mp4
+    elif data_bytes.startswith(b'RIFF') and b'AVI ' in data_bytes[:20]:
+        return "extracted_video.avi"
+    elif data_bytes.startswith(b'\x1A\x45\xDF\xA3'):
+        return "extracted_video.mkv"
+    elif data_bytes.startswith(b'\x30\x26\xB2\x75\x8E\x66\xCF\x11'):
+        return "extracted_video.wmv"
+    elif data_bytes.startswith(b'FLV\x01'):
+        return "extracted_video.flv"
+    elif data_bytes.startswith(b'\x1A\x45\xDF\xA3') and b'webm' in data_bytes[:100]:
+        return "extracted_video.webm"
+    else:
+        # Check if it looks like text content
+        try:
+            if isinstance(data, str):
+                return "extracted_text.txt"
+            else:
+                decoded = data_bytes.decode('utf-8', errors='ignore')
+                if all(ord(c) < 128 or c.isspace() for c in decoded[:100]):  # ASCII-like content
+                    return "extracted_text.txt"
+        except:
+            pass
+    
+    return "extracted_file.bin"
+
 class MultiLayerSteganography:
     """Advanced multi-layer steganography supporting multiple hidden messages"""
     
@@ -81,7 +164,18 @@ class MultiLayerSteganography:
                 original_payload = content_to_hide
             else:
                 original_payload = str(content_to_hide).encode('utf-8')
-            filename = original_filename or f'hidden_message_layer_{next_layer_number}.txt'
+            
+            # Use proper file detection instead of hardcoding .txt
+            if original_filename:
+                filename = original_filename
+            else:
+                detected_filename = detect_filename_from_content(original_payload)
+                # Replace generic prefix with layer-specific prefix
+                if detected_filename.startswith("extracted_"):
+                    base_name = detected_filename.replace("extracted_", f"hidden_message_layer_{next_layer_number}_")
+                else:
+                    base_name = f"hidden_message_layer_{next_layer_number}_{detected_filename}"
+                filename = base_name
         
         return self._embed_new_layer(file_data, original_payload, output_path, 
                                    password, filename, file_ext, next_layer_number, existing_layers)

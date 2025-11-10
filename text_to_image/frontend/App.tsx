@@ -9,13 +9,13 @@ import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import General from "./pages/General";
-import PixelVault from "./pages/PixelVault";
 import CopyrightProtection from "./pages/CopyrightProtection";
 import ForensicEvidence from "./pages/ForensicEvidence";
 import Developers from "./pages/Developers";
-import Contact from "./pages/Contact";
+import ContactUs from "./pages/ContactUs";
 import Privacy from "./pages/Privacy";
 import Profile from "./pages/Profile";
+import PixelVault from "./pages/PixelVault";
 import NotFound from "./pages/NotFound";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import ScrollToTop from "./components/ScrollToTop";
@@ -37,13 +37,13 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/general" element={<General />} />
-            <Route path="/pixelvault" element={<PixelVault />} />
             <Route path="/copyright" element={<CopyrightProtection />} />
             <Route path="/forensic" element={<ForensicEvidence />} />
             <Route path="/developers" element={<Developers />} />
-            <Route path="/contact" element={<Contact />} />
+            <Route path="/contact" element={<ContactUs />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/pixelvault" element={<PixelVault />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

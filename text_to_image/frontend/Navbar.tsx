@@ -5,9 +5,7 @@ import { Menu, X, LogOut, Mail, Code, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { SessionManager } from "@/utils/sessionManager";
 import logo from "@/assets/logo.png";
 
 export default function Navbar() {
@@ -15,7 +13,6 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   useEffect(() => {
     // Check current auth state
@@ -35,9 +32,9 @@ export default function Navbar() {
     { name: "Home", path: "/home" },
     { name: "Dashboard", path: "/dashboard" },
     { name: "General", path: "/general" },
-    { name: "PixelVault", path: "/pixelvault" },
     { name: "Copyright", path: "/copyright" },
     { name: "Forensic", path: "/forensic" },
+    { name: "PixelVault", path: "/pixelvault" },
   ] : [];
 
   const rightLinks = [
@@ -60,26 +57,22 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [scrolled]);
   
-  const handleLogoutClick = () => {
-    setLogoutConfirmOpen(true);
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
   };
 
-  const confirmLogout = async () => {
-    setLogoutConfirmOpen(false);
-    await SessionManager.handleLogout();
-  };
-
-  return <header className={cn("fixed top-0 left-0 right-0 z-50 transition-all duration-300", scrolled ? "bg-background/95 dark:bg-card/95 backdrop-blur-lg py-1 shadow-lg shadow-primary/10 border-b border-border/20" : "bg-background/80 dark:bg-card/80 backdrop-blur-md py-1.5 shadow-sm")}>
+  return <header className={cn("fixed top-0 left-0 right-0 z-50 transition-all duration-300", scrolled ? "bg-white/95 dark:bg-card/95 backdrop-blur-lg py-1 shadow-md" : "bg-white/90 dark:bg-card/90 backdrop-blur-md py-1.5 shadow-sm")}>
       <nav className="container flex justify-between items-center">
         <div className="flex items-center space-x-8">
-          <Link to="/" className="flex items-center">
+          <Link to={user ? "/home" : "/"} className="flex items-center">
             <img src={logo} alt="VeilForge Logo" className="h-14 w-auto" />
           </Link>
           
           {/* Left Navigation Links */}
           <ul className="hidden md:flex space-x-8">
             {leftLinks.map(link => <li key={link.name} className="relative">
-                <Link to={link.path} className="font-medium transition-all duration-200 hover:text-primary hover:bg-accent/50 rounded-lg px-3 py-2 after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:w-0 after:bg-primary after:transition-all hover:after:w-[calc(100%-1.5rem)]">
+                <Link to={link.path} className="font-medium transition-colors hover:text-primary after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:w-0 after:bg-primary after:transition-all hover:after:w-full">
                   {link.name}
                 </Link>
               </li>)}
@@ -104,7 +97,7 @@ export default function Navbar() {
             </Button>
           ))}
           {user ? (
-            <Button onClick={handleLogoutClick} variant="ghost" size="icon">
+            <Button onClick={handleLogout} variant="ghost" size="icon">
               <LogOut className="h-4 w-4" />
             </Button>
           ) : (
@@ -156,7 +149,7 @@ export default function Navbar() {
             
             <div className="space-y-3">
               {user ? (
-                <Button onClick={() => { handleLogoutClick(); setMobileMenuOpen(false); }} variant="outline" className="w-full">
+                <Button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} variant="outline" className="w-full">
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </Button>
@@ -171,25 +164,5 @@ export default function Navbar() {
           </div>
         </div>
       </div>
-
-      {/* Logout Confirmation Dialog */}
-      <Dialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Logout</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to logout? You will be redirected to the login page.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLogoutConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={confirmLogout}>
-              Logout
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </header>;
 }

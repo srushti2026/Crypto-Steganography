@@ -120,6 +120,17 @@ const Developers = () => {
 
         {/* Development Team */}
         <section className="max-w-6xl mx-auto">
+          <div className="text-center mb-8">
+            <a 
+              href="https://drive.google.com/drive/folders/1FsYH7ayO-DjTHtnbl9m5qMxgCZ-6yGq8?usp=sharing" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg font-medium transition-all hover:scale-105 shadow-lg hover:shadow-xl mb-8"
+            >
+              <Code className="w-5 h-5" />
+              About the Project
+            </a>
+          </div>
           <h2 className="text-3xl font-bold mb-12 text-center">Meet the Team</h2>
           <div className="grid md:grid-cols-3 gap-8">
             {developers.map((dev, index) => (
