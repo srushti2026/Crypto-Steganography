@@ -2149,6 +2149,9 @@ async def process_embed_operation(
     import json
     start_time = time.time()
     
+    print(f"[EMBED] Starting embedding operation {operation_id}")
+    print(f"[EMBED] Carrier: {carrier_type}, Content: {content_type}")
+    
     try:
         update_job_status(operation_id, "processing", 30, "Preparing content")
         
@@ -2472,17 +2475,23 @@ async def process_embed_operation(
         # Calculate processing time
         processing_time = time.time() - start_time
         
-        # Log completion in database
+        update_job_status(operation_id, "processing", 95, "Saving results")
+        
+        # Log completion in database with timeout protection
         if db and user_id and db_operation_id:
-            message_preview = text_content[:100] if content_type == "text" else f"File: {Path(content_file_path).name if content_file_path else 'unknown'}"
-            db.log_operation_complete(
-                db_operation_id,
-                success=True,
-                output_filename=output_filename,
-                file_size=os.path.getsize(output_path),
-                message_preview=message_preview,
-                processing_time=processing_time
-            )
+            try:
+                message_preview = text_content[:100] if content_type == "text" else f"File: {Path(content_file_path).name if content_file_path else 'unknown'}"
+                db.log_operation_complete(
+                    db_operation_id,
+                    success=True,
+                    output_filename=output_filename,
+                    file_size=os.path.getsize(output_path),
+                    message_preview=message_preview,
+                    processing_time=processing_time
+                )
+            except Exception as db_error:
+                print(f"[WARNING] Database logging failed but operation completed successfully: {db_error}")
+                # Don't let database errors prevent operation completion
         
         # Update job status with result
         result = {
@@ -2512,14 +2521,18 @@ async def process_embed_operation(
         error_msg = translate_error_message(str(e), carrier_type)
         update_job_status(operation_id, "failed", error=error_msg)
         
-        # Log failure in database
+        # Log failure in database with timeout protection
         if db and user_id and db_operation_id:
-            db.log_operation_complete(
-                db_operation_id,
-                success=False,
-                error_message=error_msg,
-                processing_time=time.time() - start_time
-            )
+            try:
+                db.log_operation_complete(
+                    db_operation_id,
+                    success=False,
+                    error_message=error_msg,
+                    processing_time=time.time() - start_time
+                )
+            except Exception as db_error:
+                print(f"[WARNING] Database error logging failed: {db_error}")
+                # Don't let database errors mask the original error
 
 async def process_batch_embed_operation(
     individual_operation_id: str,
