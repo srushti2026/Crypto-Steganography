@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeilForge Deployment Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #fff;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success { background: #2d5a2d; }
+        .error { background: #5a2d2d; }
+        .info { background: #2d3a5a; }
+    </style>
+</head>
+<body>
+    <h1>🚀 VeilForge Deployment Test</h1>
+    
+    <div id="results">
+        <div class="test-result info">Running deployment tests...</div>
+    </div>
+
+    <script>
+        const API_URL = 'https://veilforge.onrender.com';
+        const results = document.getElementById('results');
+
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+
+        async function runTests() {
+            results.innerHTML = '<div class="test-result info">🔍 Testing VeilForge Deployment...</div>';
+
+            try {
+                // Test 1: Root endpoint
+                addResult('Testing root endpoint...', 'info');
+                const rootResponse = await fetch(`${API_URL}/`);
+                if (rootResponse.ok) {
+                    addResult('✅ Root endpoint working', 'success');
+                } else {
+                    addResult(`❌ Root endpoint failed: ${rootResponse.status}`, 'error');
+                }
+
+                // Test 2: Health check
+                addResult('Testing health check...', 'info');
+                const healthResponse = await fetch(`${API_URL}/health`);
+                if (healthResponse.ok) {
+                    addResult('✅ Health check working', 'success');
+                } else {
+                    addResult(`❌ Health check failed: ${healthResponse.status}`, 'error');
+                }
+
+                // Test 3: Supported formats
+                addResult('Testing supported formats...', 'info');
+                const formatsResponse = await fetch(`${API_URL}/supported-formats`);
+                if (formatsResponse.ok) {
+                    const formats = await formatsResponse.json();
+                    if (formats.image && formats.audio && formats.video) {
+                        addResult('✅ Supported formats working', 'success');
+                    } else {
+                        addResult('⚠️ Supported formats format incorrect', 'error');
+                    }
+                } else {
+                    addResult(`❌ Supported formats failed: ${formatsResponse.status}`, 'error');
+                }
+
+                // Test 4: Password generation
+                addResult('Testing password generation...', 'info');
+                const passwordResponse = await fetch(`${API_URL}/generate-password`);
+                if (passwordResponse.ok) {
+                    addResult('✅ Password generation working', 'success');
+                } else {
+                    addResult(`❌ Password generation failed: ${passwordResponse.status}`, 'error');
+                }
+
+                addResult('🎉 All tests completed!', 'success');
+
+            } catch (error) {
+                addResult(`❌ Test failed: ${error.message}`, 'error');
+            }
+        }
+
+        runTests();
+    </script>
+</body>
+</html>
