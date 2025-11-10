@@ -221,8 +221,8 @@ allowed_origins = [
     "http://localhost:8080",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:8080",
-    "https://veilforge-rctejq0kc-srushti-csd-3993s-projects.vercel.app",  # Your Vercel URL
-    "https://*.vercel.app"  # Allow all Vercel subdomains
+    "https://veilforge.vercel.app",  # Your production Vercel URL
+    "https://veilforge-rctejq0kc-srushti-csd-3993s-projects.vercel.app",  # Your deployment URL
 ]
 
 # Add production frontend URL from environment variable
@@ -232,8 +232,8 @@ if frontend_url:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins for production compatibility
+    allow_credentials=False,  # Must be False when allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
 )
