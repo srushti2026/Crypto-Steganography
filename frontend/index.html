@@ -19,76 +19,8 @@
   <body>
     <div id="root"></div>
     
-    <!-- EmailJS Library -->
+    <!-- EmailJS Library - Configuration handled by React app -->
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-    <script type="text/javascript">
-      // Initialize EmailJS globally with environment variable
-      (function() {
-        console.log('🔧 Initializing EmailJS globally...');
-        // Note: In production, this should be loaded from environment variables
-        // For now, this will be handled by the React app's configuration
-        const publicKey = import.meta.env?.VITE_EMAILJS_PUBLIC_KEY || '';
-        if (publicKey) {
-          emailjs.init(publicKey);
-          console.log('✅ EmailJS initialized globally');
-        } else {
-          console.warn('⚠️ EmailJS public key not found in environment variables');
-        }
-        
-        // Add global test function
-        window.testEmailJSGlobal = async function() {
-          console.log('🧪 Testing EmailJS from global scope...');
-          
-          const form = document.createElement('form');
-          const testData = {
-            name: 'Global Test User',
-            from_name: 'Global Test User',
-            from_email: 'globaltest@example.com',
-            phone: '555-0123',
-            message: 'This is a test from global EmailJS',
-            subject: 'Global EmailJS Test'
-          };
-          
-          Object.keys(testData).forEach(key => {
-            const input = document.createElement('input');
-            input.name = key;
-            input.value = testData[key];
-            form.appendChild(input);
-          });
-          
-          try {
-            console.log('🚀 Sending via global EmailJS...');
-            // Note: These should be loaded from environment variables in production
-            const serviceId = import.meta.env?.VITE_EMAILJS_SERVICE_ID || '';
-            const templateId = import.meta.env?.VITE_EMAILJS_TEMPLATE_ID || '';
-            const publicKey = import.meta.env?.VITE_EMAILJS_PUBLIC_KEY || '';
-            
-            if (!serviceId || !templateId || !publicKey) {
-              console.error('❌ EmailJS configuration missing from environment variables');
-              return;
-            }
-            
-            const result = await emailjs.sendForm(
-              serviceId,     // Service ID from env
-              templateId,    // Template ID from env  
-              form,
-              publicKey      // Public Key from env
-            );
-            console.log('✅ SUCCESS!', result);
-            alert('✅ Email sent successfully! Check srushti_csd@ksit.edu.in');
-            return true;
-          } catch (error) {
-            console.log('❌ FAILED:', error);
-            alert('❌ Failed: ' + JSON.stringify(error));
-            return false;
-          } finally {
-            form.remove();
-          }
-        };
-        
-        console.log('💡 Global EmailJS test available: testEmailJSGlobal()');
-      })();
-    </script>
     
     <script type="module" src="/src/main.tsx"></script>
   </body>
