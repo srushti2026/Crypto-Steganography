@@ -30,6 +30,9 @@ from typing import List, Optional, Dict, Any, Union
 import json
 import shutil
 from datetime import datetime
+import asyncio
+import concurrent.futures
+import signal
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Depends
 # from fastapi.staticfiles import StaticFiles  # Not needed in Vercel deployment
@@ -59,6 +62,23 @@ except ImportError:
         'SUBJECT_TEMPLATE': 'VeilForge Contact: {subject}',
         'ENABLE_EMAIL': False
     }
+
+# Production optimization settings
+IS_PRODUCTION = os.getenv('RENDER') is not None or os.getenv('RAILWAY') is not None
+if IS_PRODUCTION:
+    print("[INFO] Production environment detected - enabling optimizations")
+    # Reduce memory usage in production
+    import gc
+    gc.set_threshold(100, 10, 10)  # More aggressive garbage collection
+    
+    # Set stricter limits for file processing
+    MAX_FILE_SIZE_MB = 50  # Reduced from default for memory constraints
+    MAX_OPERATION_TIMEOUT = 300  # 5 minutes max per operation
+else:
+    MAX_FILE_SIZE_MB = 100
+    MAX_OPERATION_TIMEOUT = 600  # 10 minutes for local development
+
+print(f"[CONFIG] Max file size: {MAX_FILE_SIZE_MB}MB, Max operation timeout: {MAX_OPERATION_TIMEOUT}s")
 
 # Import steganography modules with fallbacks
 steganography_managers = {}
@@ -2129,6 +2149,15 @@ async def delete_operation(operation_id: str):
 # BACKGROUND PROCESSING FUNCTIONS
 # ============================================================================
 
+def run_with_timeout(func, args, kwargs, timeout_seconds):
+    """Run a function with a timeout to prevent hanging in production"""
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(func, *args, **kwargs)
+            return future.result(timeout=timeout_seconds)
+    except concurrent.futures.TimeoutError:
+        raise Exception(f"Operation timed out after {timeout_seconds} seconds")
+
 async def process_embed_operation(
     operation_id: str,
     carrier_file_path: str,
@@ -2440,23 +2469,51 @@ async def process_embed_operation(
             # Check if manager supports original_filename parameter and call with correct parameters
             import inspect
             sig = inspect.signature(manager.hide_data)
-            if 'original_filename' in sig.parameters:
-                manager_result = manager.hide_data(
-                    carrier_file_path,
-                    content_to_hide,
-                    str(output_path),
-                    password=password,  # Fix: pass password correctly
-                    is_file=is_file,
-                    original_filename=original_filename
-                )
-            else:
-                manager_result = manager.hide_data(
-                    carrier_file_path,
-                    content_to_hide,
-                    str(output_path),
-                    password=password,  # Fix: pass password correctly  
-                    is_file=is_file
-                )
+            
+            update_job_status(operation_id, "processing", 80, "Performing steganography operation")
+            
+            # Wrap steganography operation with timeout in production
+            try:
+                if IS_PRODUCTION:
+                    print(f"[EMBED] Running with production timeout: {MAX_OPERATION_TIMEOUT}s")
+                    if 'original_filename' in sig.parameters:
+                        manager_result = run_with_timeout(
+                            manager.hide_data,
+                            (carrier_file_path, content_to_hide, str(output_path)),
+                            {'password': password, 'is_file': is_file, 'original_filename': original_filename},
+                            MAX_OPERATION_TIMEOUT
+                        )
+                    else:
+                        manager_result = run_with_timeout(
+                            manager.hide_data,
+                            (carrier_file_path, content_to_hide, str(output_path)),
+                            {'password': password, 'is_file': is_file},
+                            MAX_OPERATION_TIMEOUT
+                        )
+                else:
+                    # Local development - no timeout
+                    if 'original_filename' in sig.parameters:
+                        manager_result = manager.hide_data(
+                            carrier_file_path,
+                            content_to_hide,
+                            str(output_path),
+                            password=password,  # Fix: pass password correctly
+                            is_file=is_file,
+                            original_filename=original_filename
+                        )
+                    else:
+                        manager_result = manager.hide_data(
+                            carrier_file_path,
+                            content_to_hide,
+                            str(output_path),
+                            password=password,  # Fix: pass password correctly  
+                            is_file=is_file
+                        )
+            except Exception as embed_error:
+                if "timed out" in str(embed_error).lower():
+                    raise Exception(f"Operation timed out - file may be too large or complex for current server capacity")
+                else:
+                    raise embed_error
             success = manager_result.get("success", False)
             # Get actual output path from result if available
             actual_output_path = manager_result.get("output_path", str(output_path))
@@ -2516,6 +2573,12 @@ async def process_embed_operation(
         os.remove(carrier_file_path)
         if content_type == "file" and content_file_path and os.path.exists(content_file_path):
             os.remove(content_file_path)
+            
+        # Memory cleanup for production environment
+        if IS_PRODUCTION:
+            import gc
+            gc.collect()
+            print(f"[EMBED] Memory cleanup completed for operation {operation_id}")
             
     except Exception as e:
         error_msg = translate_error_message(str(e), carrier_type)
