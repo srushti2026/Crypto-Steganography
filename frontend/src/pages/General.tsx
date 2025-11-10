@@ -1674,7 +1674,11 @@ export default function General() {
                                     src={URL.createObjectURL(file)} 
                                     alt={`Preview ${index + 1}`}
                                     className="w-full h-full object-cover"
-                                    onLoad={(e) => setTimeout(() => URL.revokeObjectURL(e.currentTarget.src), 1000)}
+                                    onLoad={(e) => {
+                                      if (e.currentTarget && e.currentTarget.src) {
+                                        setTimeout(() => URL.revokeObjectURL(e.currentTarget.src), 1000);
+                                      }
+                                    }}
                                   />
                                 ) : file.type.startsWith('video/') ? (
                                   <Video className="h-8 w-8 text-blue-600" />
@@ -1714,8 +1718,10 @@ export default function General() {
                                   alt="Carrier preview"
                                   className="w-full h-full object-cover animate-fade-in transition-transform duration-300 group-hover:scale-105"
                                   onLoad={(e) => {
-                                    // Clean up object URL after loading
-                                    setTimeout(() => URL.revokeObjectURL(e.currentTarget.src), 1000);
+                                    // Clean up object URL after loading with null safety
+                                    if (e.currentTarget && e.currentTarget.src) {
+                                      setTimeout(() => URL.revokeObjectURL(e.currentTarget.src), 1000);
+                                    }
                                   }}
                                 />
                                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">

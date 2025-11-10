@@ -777,38 +777,25 @@ async def health_check():
 async def supported_formats_alias():
     """Alias for /api/supported-formats - Frontend compatibility"""
     return {
-        "success": True,
-        "formats": {
-            "image": {
-                "name": "Image Files",
-                "extensions": [".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".gif"],
-                "mimeTypes": ["image/png", "image/jpeg", "image/bmp", "image/tiff", "image/gif"],
-                "supported": True
-            },
-            "audio": {
-                "name": "Audio Files", 
-                "extensions": [".wav", ".mp3", ".flac"],
-                "mimeTypes": ["audio/wav", "audio/mpeg", "audio/flac"],
-                "supported": True
-            },
-            "video": {
-                "name": "Video Files",
-                "extensions": [".mp4", ".avi", ".mov"],
-                "mimeTypes": ["video/mp4", "video/avi", "video/quicktime"],
-                "supported": True
-            },
-            "document": {
-                "name": "Document Files",
-                "extensions": [".pdf", ".docx", ".txt"],
-                "mimeTypes": ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"],
-                "supported": True
-            },
-            "text": {
-                "name": "Text Content",
-                "extensions": [".txt"],
-                "mimeTypes": ["text/plain"],
-                "supported": True
-            }
+        "image": {
+            "carrier_formats": ["png", "jpg", "jpeg", "bmp", "tiff", "gif"],
+            "content_formats": ["txt", "png", "jpg", "pdf", "docx"],
+            "max_size_mb": 50
+        },
+        "audio": {
+            "carrier_formats": ["wav", "mp3", "flac"],
+            "content_formats": ["txt", "png", "jpg", "pdf", "docx"],
+            "max_size_mb": 100
+        },
+        "video": {
+            "carrier_formats": ["mp4", "avi", "mov"],
+            "content_formats": ["txt", "png", "jpg", "pdf", "docx"],
+            "max_size_mb": 500
+        },
+        "document": {
+            "carrier_formats": ["pdf", "docx", "txt"],
+            "content_formats": ["txt", "png", "jpg", "pdf"],
+            "max_size_mb": 25
         }
     }
 
