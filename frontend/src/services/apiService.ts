@@ -3,10 +3,31 @@
  * Handles all communication with the FastAPI backend
  */
 
-// Dynamic API base URL using environment variable
+// Dynamic API base URL using environment variable with safe fallback
 const getApiBaseUrl = (): string => {
-  // Use environment variable if available, otherwise fallback to local development
-  return import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+  // Check if we're in production (Vercel)
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    return 'https://veilforge.onrender.com';
+  }
+  
+  // Try to get environment variable safely
+  try {
+    const envUrl = import.meta?.env?.VITE_API_URL;
+    if (envUrl) return envUrl;
+  } catch (error) {
+    console.warn('Environment variable access failed, using production URL');
+  }
+  
+  // Fallback based on current hostname
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname.includes('vercel.app') || hostname.includes('netlify.app')) {
+      return 'https://veilforge.onrender.com';
+    }
+  }
+  
+  // Local development fallback
+  return 'http://localhost:8000';
 };
 
 const API_BASE_URL = getApiBaseUrl();

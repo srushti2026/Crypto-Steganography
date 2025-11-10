@@ -813,9 +813,19 @@ async def generate_password_alias(length: int = 16, include_symbols: bool = True
     return {"password": password, "length": length, "strength": "strong"}
 
 @app.post("/embed")
-async def embed_alias(files: list = File(...), message: str = Form(...)):
+async def embed_alias():
     """Alias for embed operations - Frontend compatibility"""
-    return {"error": "Please use specific embed endpoints like /api/embed-image, /api/embed-text, etc."}
+    return {
+        "success": False,
+        "error": "Invalid embed endpoint",
+        "message": "Please use specific embed endpoints",
+        "available_endpoints": [
+            "/api/embed-image",
+            "/api/embed-audio", 
+            "/api/embed-video",
+            "/api/embed-document"
+        ]
+    }
 
 @app.get("/api/test")
 async def test_endpoint():

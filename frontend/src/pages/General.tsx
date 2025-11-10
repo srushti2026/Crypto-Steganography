@@ -36,7 +36,17 @@ import {
 } from "lucide-react";
 
 // API Service Integration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const getApiUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    return 'https://veilforge.onrender.com';
+  }
+  try {
+    return import.meta?.env?.VITE_API_URL || 'https://veilforge.onrender.com';
+  } catch {
+    return 'https://veilforge.onrender.com';
+  }
+};
+const API_BASE_URL = getApiUrl();
 
 interface SupportedFormats {
   image: { carrier_formats: string[]; content_formats: string[]; max_size_mb: number; };

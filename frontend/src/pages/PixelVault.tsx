@@ -19,7 +19,17 @@ import { useToast } from "@/hooks/use-toast";
 
 // API Service Integration
 // Use environment variable for production deployment
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const getApiUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    return 'https://veilforge.onrender.com';
+  }
+  try {
+    return import.meta?.env?.VITE_API_URL || 'https://veilforge.onrender.com';
+  } catch {
+    return 'https://veilforge.onrender.com';
+  }
+};
+const API_BASE_URL = getApiUrl();
 
 // Helper function to clean filenames for display
 const cleanFilenameForDisplay = (filename: string): string => {
