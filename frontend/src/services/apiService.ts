@@ -240,7 +240,7 @@ class ApiService {
     const result = await response.json();
     
     // Start polling for progress if callback provided
-    if (onProgress && result.operation_id) {
+    if (onProgress && result.operation_id && result.operation_id !== 'undefined') {
       this.pollOperationStatus(result.operation_id, onProgress);
     }
     
@@ -277,7 +277,7 @@ class ApiService {
     const result = await response.json();
     
     // Start polling for progress if callback provided
-    if (onProgress && result.operation_id) {
+    if (onProgress && result.operation_id && result.operation_id !== 'undefined') {
       this.pollOperationStatus(result.operation_id, onProgress);
     }
     
@@ -286,6 +286,9 @@ class ApiService {
 
   // Operation Status and Management
   async getOperationStatus(operationId: string): Promise<StatusResponse> {
+    if (!operationId || operationId === 'undefined') {
+      throw new Error('Invalid operation ID');
+    }
     return this.makeRequest(`/operations/${operationId}/status`);
   }
 
@@ -317,6 +320,11 @@ class ApiService {
     onProgress: (progress: number) => void,
     interval: number = 1000
   ): Promise<void> {
+    if (!operationId || operationId === 'undefined') {
+      console.error('Invalid operation ID for polling:', operationId);
+      return;
+    }
+    
     const poll = async () => {
       try {
         const status = await this.getOperationStatus(operationId);
@@ -332,7 +340,8 @@ class ApiService {
         // Continue polling
         setTimeout(poll, interval);
       } catch (error) {
-        console.error('Error polling operation status:', error);
+        console.error('❌ ERROR: Failed to check operation status');
+        console.error('Status poll error:', error);
       }
     };
     

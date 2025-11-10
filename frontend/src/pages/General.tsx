@@ -1680,16 +1680,32 @@ export default function General() {
                                 style={{ animationDelay: `${index * 0.1}s` }}
                               >
                                 {file.type.startsWith('image/') ? (
-                                  <img 
-                                    src={URL.createObjectURL(file)} 
-                                    alt={`Preview ${index + 1}`}
-                                    className="w-full h-full object-cover"
-                                    onLoad={(e) => {
-                                      if (e.currentTarget && e.currentTarget.src) {
-                                        setTimeout(() => URL.revokeObjectURL(e.currentTarget.src), 1000);
-                                      }
-                                    }}
-                                  />
+                                  (() => {
+                                    const objectUrl = URL.createObjectURL(file);
+                                    return (
+                                      <img 
+                                        src={objectUrl}
+                                        alt={`Preview ${index + 1}`}
+                                        className="w-full h-full object-cover"
+                                        onLoad={() => {
+                                          setTimeout(() => {
+                                            try {
+                                              URL.revokeObjectURL(objectUrl);
+                                            } catch (error) {
+                                              console.debug('URL cleanup error:', error);
+                                            }
+                                          }, 1000);
+                                        }}
+                                        onError={() => {
+                                          try {
+                                            URL.revokeObjectURL(objectUrl);
+                                          } catch (error) {
+                                            console.debug('URL cleanup error:', error);
+                                          }
+                                        }}
+                                      />
+                                    );
+                                  })()
                                 ) : file.type.startsWith('video/') ? (
                                   <Video className="h-8 w-8 text-blue-600" />
                                 ) : file.type.startsWith('audio/') ? (
@@ -1723,17 +1739,32 @@ export default function General() {
                             {carrierFile ? (
                               carrierFile.type.startsWith('image/') ? (
                               <div className="w-full h-full relative">
-                                <img 
-                                  src={URL.createObjectURL(carrierFile)} 
-                                  alt="Carrier preview"
-                                  className="w-full h-full object-cover animate-fade-in transition-transform duration-300 group-hover:scale-105"
-                                  onLoad={(e) => {
-                                    // Clean up object URL after loading with null safety
-                                    if (e.currentTarget && e.currentTarget.src) {
-                                      setTimeout(() => URL.revokeObjectURL(e.currentTarget.src), 1000);
-                                    }
-                                  }}
-                                />
+                                {(() => {
+                                  const objectUrl = URL.createObjectURL(carrierFile);
+                                  return (
+                                    <img 
+                                      src={objectUrl}
+                                      alt="Carrier preview"
+                                      className="w-full h-full object-cover animate-fade-in transition-transform duration-300 group-hover:scale-105"
+                                      onLoad={() => {
+                                        setTimeout(() => {
+                                          try {
+                                            URL.revokeObjectURL(objectUrl);
+                                          } catch (error) {
+                                            console.debug('URL cleanup error:', error);
+                                          }
+                                        }, 1000);
+                                      }}
+                                      onError={() => {
+                                        try {
+                                          URL.revokeObjectURL(objectUrl);
+                                        } catch (error) {
+                                          console.debug('URL cleanup error:', error);
+                                        }
+                                      }}
+                                    />
+                                  );
+                                })()}
                                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-center justify-center">
                                   <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white/90 dark:bg-black/90 rounded-full p-3">
                                     <FileImage className="h-6 w-6 text-primary" />
