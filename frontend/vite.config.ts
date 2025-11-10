@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => ({
     }
   },
   define: {
-    // Ensure import.meta.env is properly defined in production
-    'import.meta.env.VITE_API_URL': JSON.stringify(
+    // Ensure proper environment variable replacement
+    '__VITE_API_URL__': JSON.stringify(
       mode === 'production' 
         ? 'https://veilforge.onrender.com' 
         : 'http://localhost:8000'
