@@ -14,10 +14,15 @@ lxml>=4.6.0
 PyPDF2>=3.0.0
 python-docx>=0.8.11
 
+# Audio processing libraries
+librosa>=0.10.0
+soundfile>=0.12.1
+audioread>=3.0.0
+scipy>=1.11.0
+
 # Multimedia processing (optimized for serverless)
 pydub>=0.25.1
 opencv-python-headless>=4.5.0
-soundfile>=0.12.1
 
 # FastAPI and web dependencies (required for Render)
 fastapi>=0.104.0

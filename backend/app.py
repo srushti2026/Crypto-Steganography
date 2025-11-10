@@ -725,6 +725,46 @@ async def register_user(user: UserModel, db: Optional[SteganographyDatabase] = D
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/")
+async def root():
+    """Root endpoint providing API information and status"""
+    return {
+        "message": "Welcome to VeilForge API",
+        "description": "Comprehensive steganography and security services",
+        "version": "2.0.0",
+        "status": "active",
+        "timestamp": datetime.now().isoformat(),
+        "features": [
+            "Image Steganography",
+            "Text Steganography", 
+            "Audio Steganography",
+            "Video Steganography",
+            "Document Steganography",
+            "Text-to-Image Generation",
+            "Batch Processing",
+            "Password Generation",
+            "File Format Support"
+        ],
+        "endpoints": {
+            "health": "/health",
+            "documentation": "/docs",
+            "test": "/api/test",
+            "image": "/api/embed-image, /api/extract-image",
+            "text": "/api/embed-text, /api/extract-text",
+            "audio": "/api/embed-audio, /api/extract-audio",
+            "video": "/api/embed-video, /api/extract-video",
+            "document": "/api/embed-document, /api/extract-document",
+            "text_to_image": "/api/generate-image",
+            "batch": "/api/batch-embed, /api/batch-extract",
+            "utilities": "/api/supported-formats, /api/generate-password"
+        },
+        "support": {
+            "frontend": "React TypeScript with Vite",
+            "cors": "Configured for production deployment",
+            "formats": "Images, Audio, Video, Documents, Text"
+        }
+    }
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint for deployment monitoring"""
