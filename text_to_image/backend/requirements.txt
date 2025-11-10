@@ -1,6 +1,0 @@
-requests
-python-dotenv
-Pillow
-tqdm
-huggingface_hub>=0.26.0
-

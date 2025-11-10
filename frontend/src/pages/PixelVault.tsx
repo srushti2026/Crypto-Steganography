@@ -18,8 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 // API Service Integration
-// Use relative URLs since Vite proxy handles the routing
-const API_BASE_URL = '';
+// Use environment variable for production deployment
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Helper function to clean filenames for display
 const cleanFilenameForDisplay = (filename: string): string => {

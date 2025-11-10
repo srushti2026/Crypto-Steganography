@@ -725,6 +725,11 @@ async def register_user(user: UserModel, db: Optional[SteganographyDatabase] = D
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for deployment monitoring"""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
 @app.get("/api/test")
 async def test_endpoint():
     """Test endpoint to verify backend is working"""
