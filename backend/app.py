@@ -772,6 +772,36 @@ async def health_check():
     """Health check endpoint for deployment monitoring"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
+# Add aliases for frontend compatibility (without /api prefix)
+@app.get("/supported-formats")
+async def supported_formats_alias():
+    """Alias for /api/supported-formats - Frontend compatibility"""
+    return {
+        "image_formats": ["png", "jpg", "jpeg", "bmp", "tiff"],
+        "audio_formats": ["wav", "mp3", "flac"],
+        "video_formats": ["mp4", "avi", "mov"],
+        "document_formats": ["pdf", "docx", "txt"],
+        "compression": ["zip"]
+    }
+
+@app.get("/generate-password")
+async def generate_password_alias(length: int = 16, include_symbols: bool = True):
+    """Alias for /api/generate-password - Frontend compatibility"""
+    import secrets
+    import string
+    
+    characters = string.ascii_letters + string.digits
+    if include_symbols:
+        characters += "!@#$%^&*"
+    
+    password = ''.join(secrets.choice(characters) for _ in range(length))
+    return {"password": password, "length": length, "strength": "strong"}
+
+@app.post("/embed")
+async def embed_alias(files: list = File(...), message: str = Form(...)):
+    """Alias for embed operations - Frontend compatibility"""
+    return {"error": "Please use specific embed endpoints like /api/embed-image, /api/embed-text, etc."}
+
 @app.get("/api/test")
 async def test_endpoint():
     """Test endpoint to verify backend is working"""
