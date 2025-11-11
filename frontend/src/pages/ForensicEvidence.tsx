@@ -808,7 +808,7 @@ const ForensicEvidence = () => {
           return;
         }
         
-        const response = await fetch(`${API_BASE_URL}/operations/${operationId}/status`);
+        const response = await fetch(`${API_BASE_URL}/api/operations/${operationId}/status`);
         if (!response.ok) throw new Error('Failed to check status');
         
         const status = await response.json();
@@ -934,7 +934,7 @@ const ForensicEvidence = () => {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/operations/${currentOperationId}/download-forensic`);
+      const response = await fetch(`${API_BASE_URL}/api/operations/${currentOperationId}/download-forensic`);
       
       // If forensic download not available, use standard download
       if (!response.ok && response.status === 404) {
@@ -966,7 +966,7 @@ const ForensicEvidence = () => {
     }
 
     try {
-      const downloadEndpoint = `${API_BASE_URL}/operations/${currentOperationId}/download-forensic`;
+      const downloadEndpoint = `${API_BASE_URL}/api/operations/${currentOperationId}/download-forensic`;
       const defaultFilename = `forensic_evidence_${caseId || Date.now()}.zip`;
       
       // Try forensic download first, fallback to standard if not available
@@ -1005,7 +1005,7 @@ const ForensicEvidence = () => {
       }
       
       // First try to get the latest status to ensure we have the result
-      const statusResponse = await fetch(`${API_BASE_URL}/operations/${currentOperationId}/status`);
+      const statusResponse = await fetch(`${API_BASE_URL}/api/operations/${currentOperationId}/status`);
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
         console.log("🔄 Latest status:", statusData);
@@ -1014,7 +1014,7 @@ const ForensicEvidence = () => {
         }
       }
       
-      const response = await fetch(`${API_BASE_URL}/operations/${currentOperationId}/download`);
+      const response = await fetch(`${API_BASE_URL}/api/operations/${currentOperationId}/download`);
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -1071,7 +1071,7 @@ const ForensicEvidence = () => {
       }
       
       // First try to get the latest status to ensure we have the result
-      const statusResponse = await fetch(`${API_BASE_URL}/operations/${currentOperationId}/status`);
+      const statusResponse = await fetch(`${API_BASE_URL}/api/operations/${currentOperationId}/status`);
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
         console.log("🔄 Latest status:", statusData);
@@ -1080,7 +1080,7 @@ const ForensicEvidence = () => {
         }
       }
       
-      const downloadEndpoint = `${API_BASE_URL}/operations/${currentOperationId}/download`;
+      const downloadEndpoint = `${API_BASE_URL}/api/operations/${currentOperationId}/download`;
       const defaultFilename = operationResult?.filename || `forensic_evidence_${currentOperationId.slice(0, 8)}.png`;
       
       // Use the utility function for proper save as functionality

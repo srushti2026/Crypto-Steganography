@@ -507,7 +507,7 @@ export default function CopyrightProtection() {
         }
         
         attempts++;
-        const response = await fetch(`${API_BASE_URL}/operations/${operationId}/status`);
+        const response = await fetch(`${API_BASE_URL}/api/operations/${operationId}/status`);
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -955,7 +955,7 @@ export default function CopyrightProtection() {
     }
 
     try {
-      const downloadEndpoint = `${API_BASE_URL}/operations/${currentOperationId}/download`;
+      const downloadEndpoint = `${API_BASE_URL}/api/operations/${currentOperationId}/download`;
       
       // Determine default filename based on operation type
       let defaultFilename;

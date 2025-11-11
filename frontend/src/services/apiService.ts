@@ -289,11 +289,11 @@ class ApiService {
     if (!operationId || operationId === 'undefined') {
       throw new Error('Invalid operation ID');
     }
-    return this.makeRequest(`/operations/${operationId}/status`);
+    return this.makeRequest(`/api/operations/${operationId}/status`);
   }
 
   async downloadResult(operationId: string): Promise<Blob> {
-    const response = await fetch(`${this.baseUrl}/operations/${operationId}/download`);
+    const response = await fetch(`${this.baseUrl}/api/operations/${operationId}/download`);
     
     if (!response.ok) {
       const errorMessage = `Failed to download result: ${response.statusText}`;
@@ -305,7 +305,7 @@ class ApiService {
   }
 
   async deleteOperation(operationId: string): Promise<any> {
-    return this.makeRequest(`/operations/${operationId}`, {
+    return this.makeRequest(`/api/operations/${operationId}`, {
       method: 'DELETE',
     });
   }
@@ -355,7 +355,7 @@ class ApiService {
 
   // Utility Methods
   getDownloadUrl(operationId: string): string {
-    return `${this.baseUrl}/operations/${operationId}/download`;
+    return `${this.baseUrl}/api/operations/${operationId}/download`;
   }
 
   validateFile(file: File, carrierType: string, supportedFormats: SupportedFormats): {

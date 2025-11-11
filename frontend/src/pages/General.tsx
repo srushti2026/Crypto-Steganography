@@ -1036,7 +1036,7 @@ export default function General() {
           return;
         }
         
-        const response = await fetch(`${API_BASE_URL}/operations/${operationId}/status`);
+        const response = await fetch(`${API_BASE_URL}/api/operations/${operationId}/status`);
         if (!response.ok) throw new Error('Failed to check status');
         
         const status = await response.json();
@@ -1136,8 +1136,8 @@ export default function General() {
       // Check if this is a batch operation
       const isBatchOperation = operationResult?.batch_operation || false;
       const downloadEndpoint = isBatchOperation 
-        ? `${API_BASE_URL}/operations/${currentOperationId}/download-batch`
-        : `${API_BASE_URL}/operations/${currentOperationId}/download`;
+        ? `${API_BASE_URL}/api/operations/${currentOperationId}/download-batch`
+        : `${API_BASE_URL}/api/operations/${currentOperationId}/download`;
       
       // For batch operations, suggest a ZIP filename
       const defaultFilename = isBatchOperation 
