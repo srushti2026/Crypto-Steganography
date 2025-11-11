@@ -801,7 +801,8 @@ export default function General() {
       }
 
       // Make API call
-      const endpoint = batchMode ? `${API_BASE_URL}/embed-batch` : `${API_BASE_URL}/embed`;
+      const endpoint = batchMode ? `${API_BASE_URL}/api/embed-batch` : `${API_BASE_URL}/api/embed`;
+      console.log('🔍 Calling API endpoint:', endpoint);
       const response = await fetch(endpoint, {
         method: 'POST',
         body: formData
@@ -813,6 +814,14 @@ export default function General() {
       }
 
       const result = await response.json();
+      console.log('🔍 Embed API Response:', result);
+      console.log('🔍 Operation ID from response:', result.operation_id);
+      
+      if (!result.operation_id) {
+        console.error('❌ No operation_id in response:', result);
+        throw new Error('Server did not return a valid operation ID');
+      }
+      
       setCurrentOperationId(result.operation_id);
       
       // Store uploaded files in project if user is authenticated and project is selected
@@ -941,7 +950,7 @@ export default function General() {
       }
 
       // Make API call
-      const response = await fetch(`${API_BASE_URL}/extract`, {
+      const response = await fetch(`${API_BASE_URL}/api/extract`, {
         method: 'POST',
         body: formData
       });

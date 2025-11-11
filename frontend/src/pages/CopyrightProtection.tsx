@@ -733,7 +733,7 @@ export default function CopyrightProtection() {
       }
 
       // Make API call
-      const endpoint = batchMode ? `${API_BASE_URL}/embed-batch` : `${API_BASE_URL}/embed`;
+      const endpoint = batchMode ? `${API_BASE_URL}/api/embed-batch` : `${API_BASE_URL}/api/embed`;
       console.log(`📡 Making API call to: ${endpoint}`);
       console.log("📦 FormData contents:");
       for (let [key, value] of formData.entries()) {
@@ -875,7 +875,7 @@ export default function CopyrightProtection() {
         formData.append('user_id', currentUser.id);
       }
 
-      const response = await fetch(`${API_BASE_URL}/extract`, {
+      const response = await fetch(`${API_BASE_URL}/api/extract`, {
         method: 'POST',
         body: formData
       });

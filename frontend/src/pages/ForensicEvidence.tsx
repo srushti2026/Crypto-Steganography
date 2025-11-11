@@ -671,7 +671,7 @@ const ForensicEvidence = () => {
         formData.append('user_id', currentUser.id);
       }
 
-      const response = await fetch(`${API_BASE_URL}/embed`, {
+      const response = await fetch(`${API_BASE_URL}/api/embed`, {
         method: 'POST',
         body: formData
       });
@@ -732,7 +732,7 @@ const ForensicEvidence = () => {
       // If forensic endpoint not available, use standard endpoint
       if (!response.ok && response.status === 404) {
         formData.set('output_format', 'auto');
-        response = await fetch(`${API_BASE_URL}/extract`, {
+        response = await fetch(`${API_BASE_URL}/api/extract`, {
           method: 'POST',
           body: formData
         });
