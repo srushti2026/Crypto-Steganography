@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, LogOut, Mail, Code, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ThemeToggle from "./ThemeToggle";
@@ -12,6 +12,7 @@ import logo from "@/assets/logo.png";
 
 export default function Navbar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -71,18 +72,31 @@ export default function Navbar() {
 
   return <header className={cn("fixed top-0 left-0 right-0 z-50 transition-all duration-300", scrolled ? "bg-background/95 dark:bg-card/95 backdrop-blur-lg py-1 shadow-lg shadow-primary/10 border-b border-border/20" : "bg-background/80 dark:bg-card/80 backdrop-blur-md py-1.5 shadow-sm")}>
       <nav className="container flex justify-between items-center">
-        <div className="flex items-center space-x-8">
+        <div className="flex items-center space-x-4 lg:space-x-8">
           <Link to="/" className="flex items-center">
-            <img src={logo} alt="VeilForge Logo" className="h-14 w-auto" />
+            <img src={logo} alt="VeilForge Logo" className="h-10 sm:h-12 lg:h-14 w-auto object-contain max-w-[120px] sm:max-w-[140px] lg:max-w-none" />
           </Link>
           
           {/* Left Navigation Links */}
-          <ul className="hidden md:flex space-x-8">
-            {leftLinks.map(link => <li key={link.name} className="relative">
-                <Link to={link.path} className="font-medium transition-all duration-200 hover:text-primary hover:bg-accent/50 rounded-lg px-3 py-2 after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:w-0 after:bg-primary after:transition-all hover:after:w-[calc(100%-1.5rem)]">
-                  {link.name}
-                </Link>
-              </li>)}
+          <ul className="hidden md:flex space-x-4 lg:space-x-8">
+            {leftLinks.map(link => {
+              const isActive = location.pathname === link.path;
+              return (
+                <li key={link.name} className="relative">
+                  <Link 
+                    to={link.path} 
+                    className={cn(
+                      "font-medium transition-all duration-200 hover:text-primary hover:bg-accent/50 rounded-lg px-3 py-2 after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:bg-primary after:transition-all",
+                      isActive 
+                        ? "text-primary bg-accent/30 after:w-[calc(100%-1.5rem)]" 
+                        : "after:w-0 hover:after:w-[calc(100%-1.5rem)]"
+                    )}
+                  >
+                    {link.name}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
 
@@ -125,32 +139,68 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       <div className={cn("fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden transition-opacity duration-300", mobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none")}>
-        <div className={cn("fixed inset-y-0 right-0 w-3/4 max-w-sm bg-card shadow-xl p-6 transition-transform duration-300 ease-in-out", mobileMenuOpen ? "translate-x-0" : "translate-x-full")}>
-          <div className="flex flex-col h-full justify-between">
+        <div className={cn("fixed inset-y-0 right-0 w-4/5 max-w-xs bg-card shadow-xl p-4 sm:p-6 transition-transform duration-300 ease-in-out overflow-y-auto", mobileMenuOpen ? "translate-x-0" : "translate-x-full")}>
+          <div className="flex flex-col h-full justify-between min-h-screen">
             <div>
-              <div className="flex justify-end mb-8">
+              <div className="flex justify-end mb-6 sm:mb-8">
                 <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)} className="rounded-full">
                   <X className="h-6 w-6" />
                 </Button>
               </div>
-              <ul className="space-y-6">
-                {leftLinks.map(link => <li key={link.name}>
-                    <Link to={link.path} className="text-lg font-medium transition-colors hover:text-primary" onClick={() => setMobileMenuOpen(false)}>
-                      {link.name}
-                    </Link>
-                  </li>)}
-                {rightLinks.map(link => <li key={link.name}>
-                    <Link to={link.path} className="text-lg font-medium transition-colors hover:text-primary flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
-                      {link.icon}
-                      {link.name}
-                    </Link>
-                  </li>)}
-                {userLinks.map(link => <li key={link.name}>
-                    <Link to={link.path} className="text-lg font-medium transition-colors hover:text-primary flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
-                      {link.icon}
-                      {link.name}
-                    </Link>
-                  </li>)}
+              <ul className="space-y-4 sm:space-y-6">
+                {leftLinks.map(link => {
+                  const isActive = location.pathname === link.path;
+                  return (
+                    <li key={link.name}>
+                      <Link 
+                        to={link.path} 
+                        className={cn(
+                          "text-base sm:text-lg font-medium transition-colors hover:text-primary block px-3 py-2 rounded-lg",
+                          isActive ? "text-primary bg-accent/30" : ""
+                        )} 
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        {link.name}
+                      </Link>
+                    </li>
+                  );
+                })}
+                {rightLinks.map(link => {
+                  const isActive = location.pathname === link.path;
+                  return (
+                    <li key={link.name}>
+                      <Link 
+                        to={link.path} 
+                        className={cn(
+                          "text-base sm:text-lg font-medium transition-colors hover:text-primary flex items-center gap-2 px-3 py-2 rounded-lg",
+                          isActive ? "text-primary bg-accent/30" : ""
+                        )} 
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        {link.icon}
+                        {link.name}
+                      </Link>
+                    </li>
+                  );
+                })}
+                {userLinks.map(link => {
+                  const isActive = location.pathname === link.path;
+                  return (
+                    <li key={link.name}>
+                      <Link 
+                        to={link.path} 
+                        className={cn(
+                          "text-base sm:text-lg font-medium transition-colors hover:text-primary flex items-center gap-2 px-3 py-2 rounded-lg",
+                          isActive ? "text-primary bg-accent/30" : ""
+                        )} 
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        {link.icon}
+                        {link.name}
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
             

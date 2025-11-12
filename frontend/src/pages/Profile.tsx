@@ -133,7 +133,7 @@ export default function Profile() {
 
       // Load user operations count
       const { count: operationsCount } = await supabase
-        .from("operations")
+        .from("activities")
         .select("*", { count: 'exact', head: true })
         .eq("user_id", uid);
 
@@ -179,17 +179,8 @@ export default function Profile() {
         const fileExt = avatarFile.name.split('.').pop();
         const fileName = `${userId}-avatar-${Date.now()}.${fileExt}`;
         
-        // Create avatars bucket if it doesn't exist
-        const { error: bucketError } = await supabase.storage
-          .createBucket('avatars', {
-            public: true,
-            allowedMimeTypes: ['image/*'],
-            fileSizeLimit: 5242880 // 5MB
-          });
-
-        if (bucketError && !bucketError.message.includes('already exists')) {
-          console.warn('Bucket creation warning:', bucketError);
-        }
+        // Note: Avatars bucket should be created by admin in Supabase dashboard
+        // Skipping bucket creation to avoid permission errors in production
 
         const { error: uploadError } = await supabase.storage
           .from('avatars')
