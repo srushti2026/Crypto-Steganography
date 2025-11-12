@@ -985,15 +985,15 @@ export default function PixelVault() {
  let downloadUrl = '';
  
  if (result.output_filename) {
- // Use relative URL for proxy to work correctly
- downloadUrl = `/api/download/${result.output_filename}`;
+ // Use absolute URL for proper backend access
+ downloadUrl = `${API_BASE_URL}/api/download/${result.output_filename}`;
  } else if (result.download_url) {
  if (result.download_url.startsWith('http')) {
  downloadUrl = result.download_url;
  } else if (result.download_url.startsWith('/api/')) {
- downloadUrl = result.download_url;
+ downloadUrl = `${API_BASE_URL}${result.download_url}`;
  } else {
- downloadUrl = `/api${result.download_url}`;
+ downloadUrl = `${API_BASE_URL}/api${result.download_url}`;
  }
  } else {
  toast({
