@@ -88,6 +88,11 @@ export default function PixelVault() {
  
  // Batch processing state
  const [batchMode, setBatchMode] = useState(false);
+ 
+ // Debug: Track generated image changes
+ useEffect(() => {
+   console.log('🔍 PixelVault generatedImage changed:', generatedImage);
+ }, [generatedImage]);
  const [batchCount, setBatchCount] = useState(3);
  const [generatedCarrierFiles, setGeneratedCarrierFiles] = useState<File[]>([]);
  
@@ -314,9 +319,13 @@ export default function PixelVault() {
  for (const response of responses) {
  const data = await response.json();
  if (data.success && data.image_url) {
- images.push(data.image_url);
+ // Create full URL for the image
+ const fullImageUrl = data.image_url.startsWith('http') 
+   ? data.image_url 
+   : `${API_BASE_URL}${data.image_url}`;
+ images.push(fullImageUrl);
  // Convert image URL to Blob for batch embedding
- const imageResponse = await fetch(data.image_url);
+ const imageResponse = await fetch(fullImageUrl);
  const blob = await imageResponse.blob();
  // Create a File-like object with required properties
  const file = Object.assign(blob, {
@@ -368,18 +377,25 @@ export default function PixelVault() {
  clearInterval(progressInterval);
  setProgress(100);
 
+ console.log('🖼️ Image generation API response:', data);
+ 
  if (data.success) {
- setGeneratedImage(data.image_url);
+ // Create full URL for the image
+ const fullImageUrl = data.image_url.startsWith('http') 
+   ? data.image_url 
+   : `${API_BASE_URL}${data.image_url}`;
+ console.log('✅ Setting generated image:', fullImageUrl);
+ setGeneratedImage(fullImageUrl);
  setGeneratedImageFile(data.image_filename);
  
  // Get image info for capacity display
- getImageInfo(data.image_url);
+ getImageInfo(fullImageUrl);
  
  // Add the generated image to the images array for project saving
  setGeneratedImages(prev => {
  const updated = [...prev];
- if (!updated.includes(data.image_url)) {
- updated.push(data.image_url);
+ if (!updated.includes(fullImageUrl)) {
+ updated.push(fullImageUrl);
  }
  return updated;
  });

@@ -316,7 +316,7 @@ export default function General() {
 
       // Load supported formats
       console.log('📡 Loading supported formats...');
-      const formatsResponse = await fetch(`${API_BASE_URL}/supported-formats`);
+      const formatsResponse = await fetch(`${API_BASE_URL}/api/supported-formats`);
       console.log('Formats response status:', formatsResponse.status);
       
       if (formatsResponse.ok) {
@@ -866,7 +866,7 @@ export default function General() {
             batchMode ? "batch_embed" : "embed",
             undefined, // carrier file ID will be set later
             undefined, // processed file ID will be set later
-            contentType,
+            contentType === "document" ? "file" : contentType, // map document to file for database
             encryptionType !== "none",
             true, // assume success initially
             undefined
@@ -980,7 +980,7 @@ export default function General() {
             "extract",
             undefined, // carrier file ID will be set later
             undefined, // processed file ID will be set later
-            "unknown", // payload type is unknown until extraction
+            "file", // use generic file type for extraction
             false, // extraction doesn't typically involve encryption
             true, // assume success initially
             undefined

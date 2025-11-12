@@ -355,8 +355,8 @@ export default function CopyrightProtection() {
 
   const fetchSupportedFormats = async () => {
     try {
-      console.log("📡 Fetching supported formats from:", `${API_BASE_URL}/supported-formats`);
-      const response = await fetch(`${API_BASE_URL}/supported-formats`);
+      console.log("📡 Fetching supported formats from:", `${API_BASE_URL}/api/supported-formats`);
+      const response = await fetch(`${API_BASE_URL}/api/supported-formats`);
       console.log(`📡 Formats response status: ${response.status}`);
       console.log(`📡 Response headers:`, response.headers);
       

@@ -19,6 +19,7 @@ import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import ScrollToTop from "./components/ScrollToTop";
+import { EnvDebug } from "./components/EnvDebug";
 
 // Create a react-query client
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <ScrollToTop />
+          <EnvDebug />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/home" element={<Home />} />

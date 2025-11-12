@@ -2,11 +2,9 @@
 // All sensitive values are now loaded from environment variables
 
 const getEnvVar = (key: string, defaultValue: string = '') => {
-  try {
-    return import.meta?.env?.[key] || defaultValue;
-  } catch {
-    return defaultValue;
-  }
+  const value = import.meta.env[key];
+  console.log(`🔍 Environment variable ${key}:`, value ? 'SET' : 'MISSING');
+  return value || defaultValue;
 };
 
 export const EMAILJS_CONFIG = {
@@ -24,6 +22,9 @@ export const EMAILJS_CONFIG = {
 };
 
 // Validate configuration at runtime
+console.log('🔍 All environment variables:', import.meta.env);
+console.log('🔍 EmailJS Config loaded:', EMAILJS_CONFIG);
+
 if (!EMAILJS_CONFIG.PUBLIC_KEY) {
   console.error('❌ VITE_EMAILJS_PUBLIC_KEY environment variable is required');
 }
