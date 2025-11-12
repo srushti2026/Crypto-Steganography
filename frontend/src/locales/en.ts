@@ -43,7 +43,7 @@ export const en = {
   },
   notFound: {
     title: "Page Not Found",
-    description: "We couldn't find the page you were looking for. Perhaps you took a wrong turn in paradise?",
+    description: "We couldn't find the page you were looking for.",
     returnHome: "Return Home"
   },
   home: {

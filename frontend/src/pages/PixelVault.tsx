@@ -1879,7 +1879,7 @@ export default function PixelVault() {
  <Button 
  className="w-full bg-gradient-to-r from-green-400 to-emerald-400 hover:from-green-500 hover:to-emerald-500 text-[#0D1B2A] border-4 border-green-400 pixel-corners pixel-text shadow-[0_0_20px_rgba(34,197,94,0.5)]"
  style={{ fontFamily: "'Press Start 2P', cursive", fontSize: '12px' }}
- onClick={() => window.open(extractedContent.download_url.startsWith('/api/') ? extractedContent.download_url : `/api${extractedContent.download_url}`, '_blank')}
+ onClick={() => downloadEmbeddedFile(extractedContent)}
  >
  <Download className="mr-3 h-5 w-5" />
  DOWNLOAD EXTRACTED FILE
