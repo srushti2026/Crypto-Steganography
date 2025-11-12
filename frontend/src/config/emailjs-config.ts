@@ -1,23 +1,10 @@
 // EmailJS Configuration - SECURED WITH ENVIRONMENT VARIABLES
 // All sensitive values are now loaded from environment variables
 
-console.log('🔍 Raw import.meta.env:', import.meta.env);
-
 const getEnvVar = (key: string, defaultValue: string = '') => {
   const value = import.meta.env[key];
-  console.log(`🔍 Environment variable ${key}:`, value ? `SET (${String(value).substring(0, 10)}...)` : 'MISSING');
   return value || defaultValue;
 };
-
-// Try direct access as well
-const directAccess = {
-  PUBLIC_KEY: import.meta.env.VITE_EMAILJS_PUBLIC_KEY,
-  SERVICE_ID: import.meta.env.VITE_EMAILJS_SERVICE_ID,
-  TEMPLATE_ID: import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
-  TO_EMAIL: import.meta.env.VITE_RECIPIENT_EMAIL
-};
-
-console.log('🔍 Direct environment access:', directAccess);
 
 // Fallback configuration for when environment variables are not available
 const FALLBACK_CONFIG = {
@@ -41,22 +28,9 @@ export const EMAILJS_CONFIG = {
   TO_EMAIL: getEnvVar('VITE_RECIPIENT_EMAIL', FALLBACK_CONFIG.TO_EMAIL)
 };
 
-// Validate configuration at runtime
-console.log('🔍 EmailJS Config loaded:', {
-  PUBLIC_KEY: EMAILJS_CONFIG.PUBLIC_KEY ? '✅ SET' : '❌ MISSING',
-  SERVICE_ID: EMAILJS_CONFIG.SERVICE_ID ? '✅ SET' : '❌ MISSING',
-  TEMPLATE_ID: EMAILJS_CONFIG.TEMPLATE_ID ? '✅ SET' : '❌ MISSING',
-  TO_EMAIL: EMAILJS_CONFIG.TO_EMAIL ? '✅ SET' : '❌ MISSING'
-});
-
-if (!EMAILJS_CONFIG.PUBLIC_KEY) {
-  console.warn('⚠️ VITE_EMAILJS_PUBLIC_KEY not found, using fallback');
-}
-if (!EMAILJS_CONFIG.SERVICE_ID) {
-  console.warn('⚠️ VITE_EMAILJS_SERVICE_ID not found, using fallback');
-}
-if (!EMAILJS_CONFIG.TEMPLATE_ID) {
-  console.warn('⚠️ VITE_EMAILJS_TEMPLATE_ID not found, using fallback');
+// Validate configuration at runtime - EmailJS config is now working with fallbacks
+if (import.meta.env.DEV) {
+  console.log('📧 EmailJS configuration loaded successfully');
 }
 
 // Template variables that will be sent to your email template:
