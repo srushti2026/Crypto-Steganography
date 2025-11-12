@@ -9,21 +9,37 @@ export interface FileType {
 
 // File type mappings for proper save dialogs
 export const FILE_TYPE_MAP: Record<string, FileType> = {
+  // Video formats
   'mp4': { description: 'MP4 Video', accept: { 'video/mp4': ['.mp4'] } },
   'avi': { description: 'AVI Video', accept: { 'video/avi': ['.avi'] } },
   'mov': { description: 'MOV Video', accept: { 'video/quicktime': ['.mov'] } },
+  'mkv': { description: 'MKV Video', accept: { 'video/x-matroska': ['.mkv'] } },
+  'webm': { description: 'WebM Video', accept: { 'video/webm': ['.webm'] } },
+  // Audio formats
   'wav': { description: 'WAV Audio', accept: { 'audio/wav': ['.wav'] } },
   'mp3': { description: 'MP3 Audio', accept: { 'audio/mp3': ['.mp3'] } },
+  'flac': { description: 'FLAC Audio', accept: { 'audio/flac': ['.flac'] } },
+  'ogg': { description: 'OGG Audio', accept: { 'audio/ogg': ['.ogg'] } },
+  'aac': { description: 'AAC Audio', accept: { 'audio/aac': ['.aac'] } },
+  'm4a': { description: 'M4A Audio', accept: { 'audio/mp4': ['.m4a'] } },
+  // Image formats
   'jpg': { description: 'JPEG Image', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } },
   'jpeg': { description: 'JPEG Image', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } },
   'png': { description: 'PNG Image', accept: { 'image/png': ['.png'] } },
   'bmp': { description: 'BMP Image', accept: { 'image/bmp': ['.bmp'] } },
+  'gif': { description: 'GIF Image', accept: { 'image/gif': ['.gif'] } },
+  'webp': { description: 'WebP Image', accept: { 'image/webp': ['.webp'] } },
+  // Document formats
   'pdf': { description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } },
   'doc': { description: 'Word Document', accept: { 'application/msword': ['.doc'] } },
   'docx': { description: 'Word Document', accept: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] } },
   'txt': { description: 'Text File', accept: { 'text/plain': ['.txt'] } },
+  'rtf': { description: 'RTF Document', accept: { 'application/rtf': ['.rtf'] } },
+  // Archive formats
   'zip': { description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } },
-  'json': { description: 'JSON File', accept: { 'application/json': ['.json'] } }
+  'json': { description: 'JSON File', accept: { 'application/json': ['.json'] } },
+  // Binary fallback
+  'bin': { description: 'Binary File', accept: { 'application/octet-stream': ['.bin'] } }
 };
 
 /**

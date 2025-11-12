@@ -1042,12 +1042,14 @@ export default function PixelVault() {
  }
  
  console.log('📝 Raw filename:', filename);
+ console.log('🧬 Blob MIME type:', blob.type);
  
  // Clean up filename - remove excessive timestamps and UUIDs while preserving extension
  let cleanedFilename = filename;
  
  // Extract extension first
  const extension = filename.split('.').pop()?.toLowerCase() || '';
+ console.log('📁 Original extension:', extension);
  const nameWithoutExt = filename.replace(/\.[^.]*$/, '');
  
  // Remove excessive prefixes and clean up the name
@@ -1067,47 +1069,84 @@ export default function PixelVault() {
  baseName = baseName.split('_')[0];
  }
  
- // Ensure we have a reasonable filename
- if (!baseName || baseName.length < 2) {
- baseName = 'embedded_image';
- }
- 
- // Reconstruct with proper extension
- const imageExtensions = ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp'];
- let finalExtension = extension;
- 
- if (!finalExtension || !imageExtensions.includes(finalExtension)) {
- // If no proper image extension, try to detect from blob type
- if (blob.type.startsWith('image/')) {
- const mimeToExt = {
- 'image/png': 'png',
- 'image/jpeg': 'jpg',
- 'image/jpg': 'jpg',
- 'image/bmp': 'bmp',
- 'image/gif': 'gif',
- 'image/webp': 'webp'
- };
- finalExtension = mimeToExt[blob.type] || 'png';
- } else {
- finalExtension = 'png'; // Default to PNG for images
- }
- }
- 
- // Create final clean filename
+        // Ensure we have a reasonable filename
+        if (!baseName || baseName.length < 2) {
+          baseName = 'embedded_file';
+        }        // Reconstruct with proper extension for all file types
+        const knownExtensions = [
+          // Image extensions
+          'png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp',
+          // Video extensions  
+          'mp4', 'avi', 'mov', 'mkv', 'webm',
+          // Audio extensions
+          'wav', 'mp3', 'flac', 'ogg', 'aac', 'm4a',
+          // Document extensions
+          'pdf', 'docx', 'doc', 'txt', 'rtf'
+        ];
+        let finalExtension = extension;
+        
+        if (!finalExtension || !knownExtensions.includes(finalExtension)) {
+          // Try to detect from blob type using comprehensive MIME mapping
+          const mimeToExt = {
+            // Image types
+            'image/png': 'png',
+            'image/jpeg': 'jpg',
+            'image/jpg': 'jpg', 
+            'image/bmp': 'bmp',
+            'image/gif': 'gif',
+            'image/webp': 'webp',
+            // Video types
+            'video/mp4': 'mp4',
+            'video/x-msvideo': 'avi',
+            'video/quicktime': 'mov',
+            'video/x-matroska': 'mkv',
+            'video/webm': 'webm',
+            // Audio types
+            'audio/wav': 'wav',
+            'audio/mpeg': 'mp3',
+            'audio/flac': 'flac',
+            'audio/ogg': 'ogg',
+            'audio/aac': 'aac',
+            'audio/mp4': 'm4a',
+            // Document types
+            'application/pdf': 'pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+            'application/msword': 'doc',
+            'text/plain': 'txt',
+            'application/rtf': 'rtf'
+          };
+          
+          finalExtension = mimeToExt[blob.type];
+          
+          if (!finalExtension) {
+            // Fallback based on content type category
+            if (blob.type.startsWith('image/')) {
+              finalExtension = 'png';
+            } else if (blob.type.startsWith('video/')) {
+              finalExtension = 'mp4';
+            } else if (blob.type.startsWith('audio/')) {
+              finalExtension = 'wav';
+            } else if (blob.type.startsWith('text/')) {
+              finalExtension = 'txt';
+            } else {
+              // Default based on what was originally embedded
+              finalExtension = 'bin'; // Binary file
+            }
+          }
+        } // Create final clean filename
  cleanedFilename = `${baseName}.${finalExtension}`;
  
+ console.log('🎯 Final extension detected:', finalExtension);
  console.log('🔧 Cleaned filename:', cleanedFilename);
  
  // Use the enhanced download utility with Save As functionality
  console.log('🔄 Using Save As utility for:', cleanedFilename);
  const { downloadFileWithSaveAs } = await import('@/utils/fileDownload');
- await downloadFileWithSaveAs(
- blob, 
- cleanedFilename,
- `Embedded image saved successfully as "{filename}"!`
- );
- 
- toast({
+        await downloadFileWithSaveAs(
+          blob, 
+          cleanedFilename,
+          `Embedded file saved successfully as "{filename}"!`
+        ); toast({
  title: "Download Completed",
  description: `Downloaded ${cleanedFilename} successfully!`,
  });
