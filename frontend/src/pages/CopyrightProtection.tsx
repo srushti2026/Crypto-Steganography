@@ -40,8 +40,18 @@ import {
   Key
 } from "lucide-react";
 
-// API Configuration - Dynamic URL that adapts to current hostname
-const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:8000/api`;
+// API Configuration - Dynamic URL that adapts to environment
+const getApiUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    return 'https://veilforge.onrender.com';
+  }
+  try {
+    return import.meta?.env?.VITE_API_URL || 'https://veilforge.onrender.com';
+  } catch {
+    return 'https://veilforge.onrender.com';
+  }
+};
+const API_BASE_URL = getApiUrl();
 
 // Helper function to format timestamp in user-friendly way
 const formatTimestampForHumans = (date: Date): string => {

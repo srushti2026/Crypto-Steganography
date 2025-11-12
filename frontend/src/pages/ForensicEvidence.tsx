@@ -724,7 +724,7 @@ const ForensicEvidence = () => {
       }
 
       // Try forensic-specific endpoint first
-      let response = await fetch(`${API_BASE_URL}/forensic-extract`, {
+      let response = await fetch(`${API_BASE_URL}/api/forensic-extract`, {
         method: 'POST',
         body: formData
       });

@@ -182,10 +182,28 @@ export default function PixelVault() {
  
  // Image generation settings
  if (meta.inputPrompt) setInputPrompt(meta.inputPrompt);
- if (meta.generatedImages) setGeneratedImages(meta.generatedImages);
- if (meta.generatedImage) setGeneratedImage(meta.generatedImage);
+ if (meta.generatedImages) {
+   // Convert relative URLs to full URLs for display
+   const fullUrls = meta.generatedImages.map((url: string) => 
+     url.startsWith('/api/') ? `${API_BASE_URL}${url}` : url
+   );
+   setGeneratedImages(fullUrls);
+ }
+ if (meta.generatedImage) {
+   // Convert relative URL to full URL for display
+   const fullUrl = meta.generatedImage.startsWith('/api/') 
+     ? `${API_BASE_URL}${meta.generatedImage}` 
+     : meta.generatedImage;
+   setGeneratedImage(fullUrl);
+ }
  if (meta.generatedImageFile) setGeneratedImageFile(meta.generatedImageFile);
- if (meta.processedImage) setProcessedImage(meta.processedImage);
+ if (meta.processedImage) {
+   // Convert relative URL to full URL for display
+   const fullUrl = meta.processedImage.startsWith('/api/') 
+     ? `${API_BASE_URL}${meta.processedImage}` 
+     : meta.processedImage;
+   setProcessedImage(fullUrl);
+ }
  if (meta.processedImageFile) setProcessedImageFile(meta.processedImageFile);
  
  // Embedding settings
@@ -603,7 +621,7 @@ export default function PixelVault() {
 
  // Store processed/stego image URL separately (do not overwrite original generated image)
  if (!batchMode && data.output_filename) {
- setProcessedImage(`/api/download/${data.output_filename}`);
+ setProcessedImage(`${API_BASE_URL}/api/download/${data.output_filename}`);
  setProcessedImageFile(data.output_filename);
  }
 
