@@ -1,0 +1,314 @@
+/* Responsive Design Enhancements */
+
+/* Mobile-first approach - Base styles for mobile */
+@media screen and (max-width: 640px) {
+  /* Ensure proper spacing on mobile */
+  .container,
+  .max-w-6xl,
+  .max-w-7xl {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  /* Fix navbar on mobile */
+  .navbar-container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Ensure mobile menu is properly positioned */
+  .mobile-menu-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 100 !important;
+  }
+
+  /* Fix navbar height on mobile */
+  nav {
+    min-height: 60px;
+  }
+
+  /* Ensure hamburger menu is always visible */
+  .hamburger-button {
+    display: flex !important;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Ensure cards are properly sized on mobile */
+  .card {
+    margin-bottom: 1rem;
+  }
+
+  /* Fix button sizes on mobile */
+  .btn-mobile {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  /* Fix text sizes on very small screens */
+  .pixel-text {
+    line-height: 1.6 !important;
+    word-wrap: break-word;
+  }
+
+  /* Fix image preview sizes */
+  .image-preview {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Fix form inputs on mobile */
+  .form-input {
+    width: 100%;
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+
+  /* Fix tab navigation on mobile */
+  .tabs-list {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .tab-trigger {
+    white-space: nowrap;
+    min-width: fit-content;
+  }
+}
+
+/* Tablet styles */
+@media screen and (min-width: 641px) and (max-width: 1024px) {
+  .container,
+  .max-w-6xl,
+  .max-w-7xl {
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+  }
+
+  /* Adjust grid layouts for tablet */
+  .grid-responsive {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Desktop styles */
+@media screen and (min-width: 1025px) {
+  .grid-responsive {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Fix for navigation menu overlay issues */
+.mobile-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.mobile-menu {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 85%;
+  max-width: 320px;
+  z-index: 51;
+  background: var(--card);
+  transform: translateX(100%);
+  transition: transform 0.3s ease-in-out;
+}
+
+.mobile-menu.open {
+  transform: translateX(0);
+}
+
+/* Fix for logo scaling */
+.logo-responsive {
+  height: 2.5rem; /* 40px */
+  width: auto;
+  object-fit: contain;
+  max-width: 120px;
+}
+
+@media screen and (min-width: 640px) {
+  .logo-responsive {
+    height: 3rem; /* 48px */
+    max-width: 140px;
+  }
+}
+
+@media screen and (min-width: 1024px) {
+  .logo-responsive {
+    height: 3.5rem; /* 56px */
+    max-width: none;
+  }
+}
+
+/* Fix for form layouts on mobile */
+.form-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media screen and (min-width: 768px) {
+  .form-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+/* Fix for button groups on mobile */
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+@media screen and (min-width: 640px) {
+  .button-group {
+    flex-direction: row;
+    gap: 1rem;
+  }
+}
+
+/* Ensure proper scrolling on mobile */
+.scrollable-content {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Fix for very small screens (iPhone SE, etc.) */
+@media screen and (max-width: 375px) {
+  .pixel-text {
+    font-size: 0.75rem !important;
+  }
+  
+  .hero-title {
+    font-size: 1.25rem !important;
+  }
+  
+  .card {
+    padding: 0.75rem;
+  }
+  
+  .tabs-list {
+    height: 2.5rem;
+  }
+  
+  .tab-trigger {
+    font-size: 0.625rem;
+    padding: 0.5rem;
+  }
+
+  /* Ensure mobile menu works on very small screens */
+  .mobile-menu-dropdown {
+    padding: 1rem 0.75rem !important;
+  }
+  
+  /* Make sure navbar doesn't get too cramped */
+  nav {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+  
+  /* Adjust hamburger menu for very small screens */
+  .hamburger-button {
+    min-width: 40px !important;
+    min-height: 40px !important;
+  }
+
+  /* Mobile menu grid adjustments for very small screens */
+  .mobile-nav-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+  }
+}
+
+/* Ensure navbar is properly responsive on all screen sizes */
+@media screen and (min-width: 1024px) {
+  .mobile-nav-trigger {
+    display: none !important;
+  }
+  
+  .desktop-nav {
+    display: flex !important;
+  }
+}
+
+@media screen and (max-width: 1023px) {
+  .mobile-nav-trigger {
+    display: flex !important;
+  }
+  
+  .desktop-nav {
+    display: none !important;
+  }
+}
+
+/* Mobile dropdown menu improvements */
+.mobile-dropdown {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* Smooth animations for mobile menu */
+.mobile-menu-enter {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.mobile-menu-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.mobile-menu-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mobile-menu-exit-active {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+/* Backdrop improvements */
+.mobile-backdrop {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* Mobile menu grid responsiveness */
+@media screen and (max-width: 480px) {
+  .mobile-nav-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media screen and (min-width: 481px) and (max-width: 768px) {
+  .mobile-nav-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Touch-friendly mobile menu */
+.mobile-nav-link {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+}

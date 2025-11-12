@@ -1217,44 +1217,44 @@ export default function PixelVault() {
  </div>
 
  <main className="relative z-10 pt-32 pb-20">
- <div className="container max-w-6xl mx-auto px-4">
+ <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
  {/* Hero Section */}
- <div className="text-center mb-16 space-y-6">
+ <div className="text-center mb-8 sm:mb-12 lg:mb-16 space-y-4 sm:space-y-6">
  <div className="inline-block mb-4">
- <div className="flex items-center gap-4 bg-[#1E88E5]/20 dark:bg-[#1E88E5]/20 light:bg-cyan-100/80 border-4 border-[#00B8D9] dark:border-[#00B8D9] light:border-cyan-400 px-8 py-4 pixel-corners shadow-[0_0_20px_rgba(0,184,217,0.5)]">
- <Lock className="w-8 h-8 text-[#00B8D9] dark:text-[#00B8D9] light:text-cyan-600" />
- <h1 className="text-4xl md:text-5xl font-bold tracking-wider pixel-text text-[#00B8D9] dark:text-[#00B8D9] light:text-cyan-700" style={{ fontFamily: "'Press Start 2P', cursive" }}>
+ <div className="flex items-center gap-2 sm:gap-4 bg-[#1E88E5]/20 dark:bg-[#1E88E5]/20 light:bg-cyan-100/80 border-2 sm:border-4 border-[#00B8D9] dark:border-[#00B8D9] light:border-cyan-400 px-4 sm:px-6 lg:px-8 py-3 sm:py-4 pixel-corners shadow-[0_0_20px_rgba(0,184,217,0.5)]">
+ <Lock className="w-6 h-6 sm:w-8 sm:h-8 text-[#00B8D9] dark:text-[#00B8D9] light:text-cyan-600" />
+ <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-wider pixel-text text-[#00B8D9] dark:text-[#00B8D9] light:text-cyan-700" style={{ fontFamily: "'Press Start 2P', cursive" }}>
  PIXELVAULT
  </h1>
- <Shield className="w-8 h-8 text-[#00B8D9] dark:text-[#00B8D9] light:text-cyan-600" />
+ <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-[#00B8D9] dark:text-[#00B8D9] light:text-cyan-600" />
  </div>
  </div>
  
- <p className="text-xl md:text-2xl text-[#00B8D9] dark:text-[#00B8D9] light:text-cyan-700 pixel-text" style={{ fontFamily: "'Press Start 2P', cursive", lineHeight: '2' }}>
+ <p className="text-sm sm:text-lg md:text-xl lg:text-2xl text-[#00B8D9] dark:text-[#00B8D9] light:text-cyan-700 pixel-text px-4" style={{ fontFamily: "'Press Start 2P', cursive", lineHeight: '2' }}>
  HIDDEN. ENCRYPTED. SECURED.
  </p>
  </div>
 
  {/* Main Content with Tabs */}
  <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-8">
- <TabsList className="grid w-full grid-cols-3 bg-[#0D1B2A]/80 dark:bg-[#0D1B2A]/80 light:bg-cyan-900/90 border-4 border-[#00B8D9] dark:border-[#00B8D9] light:border-cyan-400 pixel-corners shadow-[0_0_30px_rgba(0,184,217,0.5)] h-16">
+ <TabsList className="grid w-full grid-cols-3 bg-[#0D1B2A]/80 dark:bg-[#0D1B2A]/80 light:bg-cyan-900/90 border-2 sm:border-4 border-[#00B8D9] dark:border-[#00B8D9] light:border-cyan-400 pixel-corners shadow-[0_0_30px_rgba(0,184,217,0.5)] h-12 sm:h-16">
  <TabsTrigger 
  value="embed" 
- className="pixel-text text-lg font-bold h-full data-[state=active]:bg-[#1E88E5] data-[state=active]:text-[#E0E6ED] data-[state=active]:shadow-[0_0_20px_rgba(30,136,229,0.8)] data-[state=active]:border-2 data-[state=active]:border-[#00B8D9] text-[#00B8D9] hover:bg-[#1E88E5]/30 transition-all duration-300 pixel-corners" 
+ className="pixel-text text-xs sm:text-sm lg:text-lg font-bold h-full data-[state=active]:bg-[#1E88E5] data-[state=active]:text-[#E0E6ED] data-[state=active]:shadow-[0_0_20px_rgba(30,136,229,0.8)] data-[state=active]:border-2 data-[state=active]:border-[#00B8D9] text-[#00B8D9] hover:bg-[#1E88E5]/30 transition-all duration-300 pixel-corners" 
  style={{ fontFamily: "'Press Start 2P', cursive", textShadow: "2px 2px 0 rgba(0, 184, 217, 0.5)" }}
  >
  EMBED
  </TabsTrigger>
  <TabsTrigger 
  value="extract" 
- className="pixel-text text-lg font-bold h-full data-[state=active]:bg-[#1E88E5] data-[state=active]:text-[#E0E6ED] data-[state=active]:shadow-[0_0_20px_rgba(30,136,229,0.8)] data-[state=active]:border-2 data-[state=active]:border-[#00B8D9] text-[#00B8D9] hover:bg-[#1E88E5]/30 transition-all duration-300 pixel-corners" 
+ className="pixel-text text-xs sm:text-sm lg:text-lg font-bold h-full data-[state=active]:bg-[#1E88E5] data-[state=active]:text-[#E0E6ED] data-[state=active]:shadow-[0_0_20px_rgba(30,136,229,0.8)] data-[state=active]:border-2 data-[state=active]:border-[#00B8D9] text-[#00B8D9] hover:bg-[#1E88E5]/30 transition-all duration-300 pixel-corners" 
  style={{ fontFamily: "'Press Start 2P', cursive", textShadow: "2px 2px 0 rgba(0, 184, 217, 0.5)" }}
  >
  EXTRACT
  </TabsTrigger>
  <TabsTrigger 
  value="settings" 
- className="pixel-text text-lg font-bold h-full data-[state=active]:bg-[#1E88E5] data-[state=active]:text-[#E0E6ED] data-[state=active]:shadow-[0_0_20px_rgba(30,136,229,0.8)] data-[state=active]:border-2 data-[state=active]:border-[#00B8D9] text-[#00B8D9] hover:bg-[#1E88E5]/30 transition-all duration-300 pixel-corners" 
+ className="pixel-text text-xs sm:text-sm lg:text-lg font-bold h-full data-[state=active]:bg-[#1E88E5] data-[state=active]:text-[#E0E6ED] data-[state=active]:shadow-[0_0_20px_rgba(30,136,229,0.8)] data-[state=active]:border-2 data-[state=active]:border-[#00B8D9] text-[#00B8D9] hover:bg-[#1E88E5]/30 transition-all duration-300 pixel-corners" 
  style={{ fontFamily: "'Press Start 2P', cursive", textShadow: "2px 2px 0 rgba(0, 184, 217, 0.5)" }}
  >
  SETTINGS
@@ -1262,22 +1262,22 @@ export default function PixelVault() {
  </TabsList>
 
  {/* EMBED TAB */}
- <TabsContent value="embed" className="space-y-6">
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+ <TabsContent value="embed" className="space-y-4 sm:space-y-6">
+ <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
  {/* Left: Text to Image Generator */}
- <div className="space-y-6">
- <Card className="bg-[#1E88E5]/10 dark:bg-[#1E88E5]/10 light:bg-white/90 border-4 border-[#00B8D9] dark:border-[#00B8D9] light:border-cyan-400 pixel-corners shadow-[0_0_30px_rgba(0,184,217,0.3)]">
- <CardHeader>
- <div className="flex items-center gap-3 mb-4">
- <div className="w-3 h-3 bg-[#00B8D9] dark:bg-[#00B8D9] light:bg-cyan-500 animate-pulse" />
- <CardTitle className="text-2xl font-bold text-[#00B8D9] dark:text-[#00B8D9] light:text-cyan-600 pixel-text" style={{ fontFamily: "'Press Start 2P', cursive" }}>
+ <div className="space-y-4 sm:space-y-6">
+ <Card className="bg-[#1E88E5]/10 dark:bg-[#1E88E5]/10 light:bg-white/90 border-2 sm:border-4 border-[#00B8D9] dark:border-[#00B8D9] light:border-cyan-400 pixel-corners shadow-[0_0_30px_rgba(0,184,217,0.3)]">
+ <CardHeader className="p-4 sm:p-6">
+ <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+ <div className="w-2 h-2 sm:w-3 sm:h-3 bg-[#00B8D9] dark:bg-[#00B8D9] light:bg-cyan-500 animate-pulse" />
+ <CardTitle className="text-lg sm:text-xl lg:text-2xl font-bold text-[#00B8D9] dark:text-[#00B8D9] light:text-cyan-600 pixel-text" style={{ fontFamily: "'Press Start 2P', cursive" }}>
  TEXT-TO-IMAGE
  </CardTitle>
- <div className="w-3 h-3 bg-[#00B8D9] dark:bg-[#00B8D9] light:bg-cyan-500 animate-pulse" />
+ <div className="w-2 h-2 sm:w-3 sm:h-3 bg-[#00B8D9] dark:bg-[#00B8D9] light:bg-cyan-500 animate-pulse" />
  </div>
  <div className="h-1 bg-[#00B8D9]/30 dark:bg-[#00B8D9]/30" />
  </CardHeader>
- <CardContent className="space-y-6">
+ <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6 pt-0">
  <div className="relative">
  <Textarea
  value={inputPrompt}

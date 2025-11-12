@@ -149,123 +149,136 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* Mobile Menu Dropdown - Modern, compact design */}
+      {/* Mobile Menu Overlay - Only shown when menu is open */}
       {mobileMenuOpen && (
-        <>
-          {/* Backdrop - Click to close, very subtle overlay */}
+        <div className="fixed inset-0 z-[100] lg:hidden">
+          {/* Backdrop - Click to close */}
           <div 
-            className="mobile-backdrop fixed inset-0 z-[90] bg-black/10 backdrop-blur-[1px] lg:hidden"
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={closeMobileMenu}
           />
           
-          {/* Compact Menu Panel */}
-          <div className="absolute top-full left-0 right-0 z-[100] lg:hidden bg-background/95 backdrop-blur-md border-b border-border shadow-xl animate-in slide-in-from-top-2 duration-200">
-            <div className="mx-auto max-w-7xl px-4 py-4">
-              {/* Menu Grid Layout */}
-              <div className="space-y-4">
+          {/* Menu Panel */}
+          <div className="absolute inset-y-0 right-0 w-[85%] max-w-sm bg-background border-l border-border shadow-2xl overflow-y-auto">
+            <div className="flex flex-col h-full min-h-screen">
+              {/* Header */}
+              <div className="flex justify-between items-center p-4 border-b border-border">
+                <div className="text-lg font-semibold text-foreground">Navigation</div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={closeMobileMenu} 
+                  className="rounded-full hover:bg-accent"
+                >
+                  <X className="h-6 w-6" />
+                </Button>
+              </div>
+              
+              {/* Menu Content */}
+              <div className="flex-1 p-4">
                 {/* Theme Toggle for mobile */}
-                <div className="sm:hidden flex justify-center">
+                <div className="sm:hidden mb-6">
                   <ThemeToggle />
                 </div>
                 
-                {/* Main Navigation Links - Grid Layout for better organization */}
-                {leftLinks.length > 0 && (
-                  <div className="mobile-nav-grid grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {leftLinks.map(link => {
-                      const isActive = location.pathname === link.path;
-                      return (
+                {/* Navigation Links */}
+                <ul className="space-y-2">
+                  {leftLinks.map(link => {
+                    const isActive = location.pathname === link.path;
+                    return (
+                      <li key={link.name}>
                         <Link 
-                          key={link.name}
                           to={link.path} 
                           className={cn(
-                            "mobile-nav-link flex items-center justify-center px-3 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg border",
+                            "block px-4 py-3 text-base font-medium transition-colors rounded-lg border border-transparent",
                             isActive 
-                              ? "text-primary bg-primary/10 border-primary/30 shadow-sm scale-[0.98]" 
-                              : "text-foreground hover:text-primary hover:bg-accent/50 border-transparent hover:border-border hover:scale-[0.98] active:scale-95"
+                              ? "text-primary bg-accent border-primary/20 shadow-sm" 
+                              : "text-foreground hover:text-primary hover:bg-accent/50"
                           )} 
                           onClick={closeMobileMenu}
                         >
                           {link.name}
                         </Link>
-                      );
-                    })}
-                  </div>
-                )}
-                
-                {/* Secondary Links - Horizontal Layout */}
-                {(rightLinks.length > 0 || userLinks.length > 0) && (
-                  <div className="border-t border-border pt-4">
-                    <div className="flex justify-center space-x-2">
-                      {rightLinks.map(link => {
-                        const isActive = location.pathname === link.path;
-                        return (
-                          <Link 
-                            key={link.name}
-                            to={link.path} 
-                            className={cn(
-                              "flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors rounded-lg",
-                              isActive 
-                                ? "text-primary bg-primary/10" 
-                                : "text-muted-foreground hover:text-primary hover:bg-accent/50"
-                            )} 
-                            onClick={closeMobileMenu}
-                          >
-                            {link.icon}
-                            {link.name}
-                          </Link>
-                        );
-                      })}
-                      
-                      {userLinks.map(link => {
-                        const isActive = location.pathname === link.path;
-                        return (
-                          <Link 
-                            key={link.name}
-                            to={link.path} 
-                            className={cn(
-                              "flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors rounded-lg",
-                              isActive 
-                                ? "text-primary bg-primary/10" 
-                                : "text-muted-foreground hover:text-primary hover:bg-accent/50"
-                            )} 
-                            onClick={closeMobileMenu}
-                          >
-                            {link.icon}
-                            {link.name}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Auth Action */}
-                <div className="border-t border-border pt-4 flex justify-center">
-                  {user ? (
-                    <Button 
-                      onClick={() => { 
-                        handleLogoutClick(); 
-                        closeMobileMenu(); 
-                      }} 
-                      variant="outline" 
-                      size="sm"
-                      className="flex items-center gap-2"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Logout
-                    </Button>
-                  ) : (
-                    <Button asChild variant="default" size="sm">
-                      <Link to="/auth" onClick={closeMobileMenu}>
-                        Login
-                      </Link>
-                    </Button>
+                      </li>
+                    );
+                  })}
+                  
+                  {/* Divider */}
+                  {(rightLinks.length > 0 || userLinks.length > 0) && (
+                    <li className="py-2">
+                      <div className="border-t border-border"></div>
+                    </li>
                   )}
-                </div>
+                  
+                  {rightLinks.map(link => {
+                    const isActive = location.pathname === link.path;
+                    return (
+                      <li key={link.name}>
+                        <Link 
+                          to={link.path} 
+                          className={cn(
+                            "flex items-center gap-3 px-4 py-3 text-base font-medium transition-colors rounded-lg border border-transparent",
+                            isActive 
+                              ? "text-primary bg-accent border-primary/20 shadow-sm" 
+                              : "text-foreground hover:text-primary hover:bg-accent/50"
+                          )} 
+                          onClick={closeMobileMenu}
+                        >
+                          {link.icon}
+                          {link.name}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                  
+                  {userLinks.map(link => {
+                    const isActive = location.pathname === link.path;
+                    return (
+                      <li key={link.name}>
+                        <Link 
+                          to={link.path} 
+                          className={cn(
+                            "flex items-center gap-3 px-4 py-3 text-base font-medium transition-colors rounded-lg border border-transparent",
+                            isActive 
+                              ? "text-primary bg-accent border-primary/20 shadow-sm" 
+                              : "text-foreground hover:text-primary hover:bg-accent/50"
+                          )} 
+                          onClick={closeMobileMenu}
+                        >
+                          {link.icon}
+                          {link.name}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              
+              {/* Bottom Actions */}
+              <div className="border-t border-border p-4 space-y-3">
+                {user ? (
+                  <Button 
+                    onClick={() => { 
+                      handleLogoutClick(); 
+                      closeMobileMenu(); 
+                    }} 
+                    variant="outline" 
+                    className="w-full h-12 text-base"
+                  >
+                    <LogOut className="mr-2 h-5 w-5" />
+                    Logout
+                  </Button>
+                ) : (
+                  <Button asChild variant="default" className="w-full h-12 text-base">
+                    <Link to="/auth" onClick={closeMobileMenu}>
+                      Login
+                    </Link>
+                  </Button>
+                )}
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Logout Confirmation Dialog */}
@@ -290,4 +303,3 @@ export default function Navbar() {
     </header>
   );
 }
-// Force HMR update
