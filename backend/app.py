@@ -250,13 +250,31 @@ frontend_url = os.getenv("FRONTEND_URL")
 if frontend_url:
     allowed_origins.append(frontend_url)
 
+# Add comprehensive CORS support
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for production compatibility
-    allow_credentials=False,  # Must be False when allow_origins=["*"]
-    allow_methods=["*"],
+    allow_origins=["*"],  # Allow all origins for maximum compatibility
+    allow_credentials=False,  # Must be False when using wildcard origins
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+# Add CORS debugging middleware
+@app.middleware("http")
+async def cors_debug_middleware(request, call_next):
+    # Log request details for debugging
+    print(f"🌐 CORS Debug - Method: {request.method}, Origin: {request.headers.get('origin', 'None')}")
+    print(f"🌐 CORS Debug - URL: {request.url}")
+    print(f"🌐 CORS Debug - Headers: {dict(request.headers)}")
+    
+    response = await call_next(request)
+    
+    # Log response headers
+    print(f"🌐 CORS Debug - Response status: {response.status_code}")
+    print(f"🌐 CORS Debug - Response headers: {dict(response.headers)}")
+    
+    return response
 
 # Create necessary directories
 UPLOAD_DIR = Path("uploads")
@@ -1255,6 +1273,19 @@ async def generate_password(length: int = 16, include_symbols: bool = True):
         "length": length,
         "strength": "strong" if length >= 12 else "medium" if length >= 8 else "weak"
     }
+
+# Handle OPTIONS preflight requests for /api/embed
+@app.options("/api/embed")
+async def embed_options():
+    """Handle preflight CORS request for embed endpoint"""
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 @app.post("/api/embed", response_model=OperationResponse)
 async def embed_data(
@@ -3934,7 +3965,7 @@ if __name__ == "__main__":
             from config import HOST, PORT, DEBUG
         
         uvicorn.run(
-            "app:app",  # Updated to use app.py instead of enhanced_app.py
+            app,  # Use the app instance directly for better production compatibility
             host=HOST,
             port=PORT,
             reload=DEBUG,  # Enable reload only in debug mode

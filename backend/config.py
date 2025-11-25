@@ -1,9 +1,10 @@
 # VeilForge Web Application Configuration
+import os
 
 # Server settings
 HOST = "0.0.0.0"
-PORT = 8000
-DEBUG = True
+PORT = int(os.getenv("PORT", 8000))  # Use environment PORT or default to 8000
+DEBUG = os.getenv("DEBUG", "false").lower() == "true"  # Production should be false
 
 # Directory settings
 UPLOAD_DIR = "uploads"
