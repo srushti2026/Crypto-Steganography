@@ -288,6 +288,24 @@ for directory in [UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR]:
 active_jobs: Dict[str, Dict[str, Any]] = {}
 
 # ============================================================================
+# GENERIC CORS HANDLERS
+# ============================================================================
+
+# Generic OPTIONS handler for all API routes
+@app.options("/{path:path}")
+async def catch_all_options(path: str):
+    """Handle preflight CORS requests for all API endpoints"""
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Expose-Headers": "*",
+        }
+    )
+
+# ============================================================================
 # DEPENDENCY INJECTION
 # ============================================================================
 
@@ -2001,6 +2019,19 @@ async def analyze_file(
 # JOB STATUS AND DOWNLOAD ENDPOINTS
 # ============================================================================
 
+# Handle OPTIONS preflight requests for operations status endpoint
+@app.options("/api/operations/{operation_id}/status")
+async def operations_status_options(operation_id: str):
+    """Handle preflight CORS request for operations status endpoint"""
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
 @app.get("/api/operations/{operation_id}/status", response_model=StatusResponse)
 async def get_operation_status(operation_id: str):
     """Get status of a steganography operation (regular or batch)"""
@@ -2056,6 +2087,19 @@ async def get_operation_status(operation_id: str):
             error=error,
             result=job.get("result")
         )
+
+# Handle OPTIONS preflight requests for operations download endpoint
+@app.options("/api/operations/{operation_id}/download")
+async def operations_download_options(operation_id: str):
+    """Handle preflight CORS request for operations download endpoint"""
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 @app.get("/api/operations/{operation_id}/download")
 async def download_result(operation_id: str):
