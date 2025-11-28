@@ -228,6 +228,9 @@ class MultiLayerSteganography:
         layer_id = str(uuid.uuid4())
         password_hash = hashlib.sha256((password or "").encode()).hexdigest() if password else None
         
+        # SECURITY: Add file hash to bind this layer to THIS specific file
+        file_hash = hashlib.sha256(file_data).hexdigest()[:16]
+        
         metadata = {
             'layer_id': layer_id,
             'layer_number': layer_number,
@@ -237,6 +240,7 @@ class MultiLayerSteganography:
             'password_hash': password_hash,
             'checksum': hashlib.sha256(secret_data).hexdigest(),
             'carrier_ext': file_ext,
+            'file_hash': file_hash,  # SECURITY: Bind to specific file
             'timestamp': hashlib.md5(str(layer_number).encode()).hexdigest()[:8]  # Layer identifier
         }
         
@@ -341,7 +345,7 @@ class MultiLayerSteganography:
     
     def extract_all_layers(self, stego_file_path: str, password: Optional[str] = None, 
                           output_dir: str = None) -> Dict[str, Any]:
-        """Extract all layers that match the password (or all if no password)"""
+        """Extract only the most recent layer that matches the password - prevents cross-contamination"""
         
         with open(stego_file_path, 'rb') as f:
             file_data = f.read()
@@ -357,17 +361,18 @@ class MultiLayerSteganography:
         
         print(f"[MULTI-LAYER] Found {len(existing_layers)} layer(s)")
         
+        # SECURITY FIX: Extract only the LAST (most recent) layer that matches the password
+        # This prevents old embedded data from contaminating new extractions
         extracted_layers = []
-        matching_layers = []
         
-        # Try to extract each layer
-        for layer_info in existing_layers:
+        # Process layers in reverse order (most recent first)
+        for layer_info in reversed(existing_layers):
             try:
                 layer_data = self._extract_single_layer(file_data, layer_info, password)
                 if layer_data:
                     extracted_layers.append(layer_data)
-                    matching_layers.append(layer_info)
-                    print(f"[MULTI-LAYER] ✅ Extracted layer #{layer_info['layer_number']}")
+                    print(f"[MULTI-LAYER] ✅ Extracted most recent layer #{layer_info['layer_number']}")
+                    break  # CRITICAL: Only extract the first matching layer (most recent)
             except Exception as e:
                 print(f"[MULTI-LAYER] ⚠️ Failed to extract layer #{layer_info['layer_number']}: {e}")
         
@@ -600,20 +605,228 @@ class UniversalFileSteganography(MultiLayerSteganography):
     
     def extract_data(self, stego_file_path: str, password: Optional[str] = None, 
                      output_dir: str = None) -> Optional[Union[Tuple[bytes, str], Dict[str, Any]]]:
-        """Enhanced extraction with multi-layer support"""
+        """
+        FIXED: Use normal multi-layer extraction for legitimate operations
+        This ensures compatibility with how data was embedded
+        """
         
-        result = self.extract_all_layers(stego_file_path, password, output_dir)
-        
-        if not result.get('success', False):
-            return None
-        
-        # Handle single layer extraction (backward compatibility)
-        if result.get('single_extraction', False):
+        try:
+            # Use the normal multi-layer extraction method
+            print(f"[MULTI-LAYER EXTRACT] Using normal extraction method")
+            result = self.extract_all_layers(stego_file_path, password, output_dir)
+            
+            if not result or not result.get('success'):
+                return None
+            
+            # If output_dir was specified, the result should already be in the correct format
             if output_dir:
-                return result  # Return dict format for API
+                return result
             else:
-                # Return tuple format for direct usage
-                return (result['extracted_data'].encode('utf-8'), result['filename'])
+                # For backward compatibility, return tuple format
+                layers = result.get('extracted_layers', [])
+                if layers:
+                    first_layer = layers[0]
+                    filename = first_layer.get('filename', 'extracted_data.txt')
+                    content = first_layer.get('content', b'')
+                    return (content, filename)
+                return None
         
-        # Handle multi-layer extraction
-        return result
+        except Exception as e:
+            print(f"Extraction error: {e}")
+            return None
+    
+    def extract_single_file_layer(self, file_data: bytes, password: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        SECURITY CRITICAL: Extract data ONLY from this specific file, never from other files.
+        Uses file hash binding to ensure no cross-file contamination.
+        """
+        try:
+            # Generate file hash for this specific file
+            file_hash = hashlib.sha256(file_data).hexdigest()[:16]
+            print(f"[SECURE EXTRACT] File hash: {file_hash}")
+            
+            # Try to extract data using LSB method directly from this file's data
+            extracted_data = self._extract_from_file_data_secure(file_data, password, file_hash)
+            
+            if extracted_data:
+                print(f"[SECURE EXTRACT] ✅ Found data in THIS file: {len(extracted_data)} bytes")
+                
+                # Detect content type
+                is_text = True
+                try:
+                    text_content = extracted_data.decode('utf-8')
+                    filename = 'extracted_message.txt'
+                except UnicodeDecodeError:
+                    text_content = f"[Binary data: {len(extracted_data)} bytes]"
+                    filename = 'extracted_file.bin'
+                    is_text = False
+                
+                return {
+                    'single_extraction': True,
+                    'file_type': 'text' if is_text else 'binary',
+                    'content': extracted_data,
+                    'encrypted': bool(password),
+                    'metadata': {'filename': filename, 'file_hash': file_hash},
+                    'layer_info': {
+                        'layer_number': 1,
+                        'file_type': 'text' if is_text else 'binary',
+                        'encrypted': bool(password)
+                    }
+                }
+            else:
+                print(f"[SECURE EXTRACT] ❌ No data found in THIS file")
+                return None
+                
+        except Exception as e:
+            print(f"[SECURE EXTRACT] Error: {e}")
+            return None
+    
+    def _extract_from_file_data_secure(self, file_data: bytes, password: Optional[str], expected_file_hash: str) -> Optional[bytes]:
+        """Extract data directly from file bytes with hash verification to prevent cross-contamination"""
+        try:
+            # Look for our magic marker in the file data
+            magic_start = b"VEILFORGE_LAYER_START"
+            magic_end = b"VEILFORGE_LAYER_END"
+            
+            # Find all potential data blocks
+            start_pos = 0
+            while True:
+                start_idx = file_data.find(magic_start, start_pos)
+                if start_idx == -1:
+                    break
+                    
+                end_idx = file_data.find(magic_end, start_idx + len(magic_start))
+                if end_idx == -1:
+                    start_pos = start_idx + len(magic_start)
+                    continue
+                
+                # Extract the data block
+                data_block = file_data[start_idx + len(magic_start):end_idx]
+                
+                try:
+                    # Try to parse as layer data
+                    if len(data_block) < 8:
+                        start_pos = end_idx + len(magic_end)
+                        continue
+                    
+                    # Read metadata length
+                    metadata_len = struct.unpack('<I', data_block[:4])[0]
+                    if metadata_len > len(data_block) - 8:
+                        start_pos = end_idx + len(magic_end)
+                        continue
+                    
+                    # Read content length
+                    content_len = struct.unpack('<I', data_block[4:8])[0]
+                    if metadata_len + content_len + 8 > len(data_block):
+                        start_pos = end_idx + len(magic_end)
+                        continue
+                    
+                    # Extract metadata and content
+                    metadata_bytes = data_block[8:8 + metadata_len]
+                    content_bytes = data_block[8 + metadata_len:8 + metadata_len + content_len]
+                    
+                    # Parse metadata
+                    metadata = json.loads(metadata_bytes.decode('utf-8'))
+                    
+                    # CRITICAL SECURITY CHECK: Verify file hash
+                    stored_file_hash = metadata.get('file_hash', '')
+                    if stored_file_hash and stored_file_hash != expected_file_hash:
+                        print(f"[SECURE EXTRACT] Rejecting data: hash mismatch {stored_file_hash} != {expected_file_hash}")
+                        start_pos = end_idx + len(magic_end)
+                        continue
+                    
+                    # Decrypt if password provided
+                    if password and metadata.get('encrypted', False):
+                        try:
+                            content_bytes = self._decrypt_data(content_bytes, password)
+                        except Exception as decrypt_error:
+                            print(f"[SECURE EXTRACT] Decryption failed: {decrypt_error}")
+                            start_pos = end_idx + len(magic_end)
+                            continue
+                    elif password and not metadata.get('encrypted', False):
+                        # Password provided but data not encrypted - skip
+                        start_pos = end_idx + len(magic_end)
+                        continue
+                    elif not password and metadata.get('encrypted', False):
+                        # Data encrypted but no password - skip
+                        start_pos = end_idx + len(magic_end)
+                        continue
+                    
+                    print(f"[SECURE EXTRACT] ✅ Valid data found for this file")
+                    return content_bytes
+                    
+                except (json.JSONDecodeError, struct.error, UnicodeDecodeError) as parse_error:
+                    print(f"[SECURE EXTRACT] Parse error: {parse_error}")
+                    start_pos = end_idx + len(magic_end)
+                    continue
+                
+                start_pos = end_idx + len(magic_end)
+            
+            # No valid data found
+            print(f"[SECURE EXTRACT] No valid data found in this file")
+            return None
+            
+        except Exception as e:
+            print(f"[SECURE EXTRACT] Extraction error: {e}")
+            return None
+            return None
+
+def extract_layered_data_container(layered_container_json: bytes) -> List[Tuple[bytes, str]]:
+    """
+    Extract layers from a layered container JSON
+    
+    Args:
+        layered_container_json: The JSON bytes from a layered container
+        
+    Returns:
+        List of tuples (layer_data, layer_filename)
+    """
+    try:
+        # Parse the layered container JSON
+        container_str = layered_container_json.decode('utf-8')
+        container = json.loads(container_str)
+        
+        if container.get('type') != 'layered_container':
+            raise ValueError(f"Not a layered container: {container.get('type')}")
+        
+        layers = container.get('layers', [])
+        if not layers:
+            raise ValueError("No layers found in container")
+        
+        extracted_layers = []
+        
+        for layer in layers:
+            layer_filename = layer.get('filename', f'layer_{layer.get("index", 0)}.bin')
+            layer_type = layer.get('type', 'binary')
+            layer_content = layer.get('content', '')
+            
+            if layer_type == 'binary':
+                # Base64 decode binary content
+                try:
+                    layer_data = base64.b64decode(layer_content)
+                except Exception as e:
+                    print(f"[LAYER ERROR] Failed to decode base64 for {layer_filename}: {e}")
+                    continue
+            elif layer_type == 'text':
+                # Base64 decode text content 
+                try:
+                    decoded_bytes = base64.b64decode(layer_content)
+                    layer_data = decoded_bytes
+                except Exception as e:
+                    print(f"[LAYER ERROR] Failed to decode base64 text for {layer_filename}: {e}")
+                    # Try as raw text
+                    layer_data = layer_content.encode('utf-8')
+            else:
+                # Unknown type, treat as text
+                layer_data = layer_content.encode('utf-8')
+            
+            extracted_layers.append((layer_data, layer_filename))
+            print(f"[LAYER SUCCESS] Extracted layer: {layer_filename} ({len(layer_data)} bytes)")
+        
+        return extracted_layers
+        
+    except Exception as e:
+        print(f"[LAYER ERROR] Failed to extract layered container: {e}")
+        import traceback
+        traceback.print_exc()
+        return []

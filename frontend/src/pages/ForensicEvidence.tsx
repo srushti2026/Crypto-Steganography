@@ -34,14 +34,21 @@ import {
 
 // API Service Integration
 const getApiUrl = () => {
+  // Check if we're in production (Vercel deployment)
   if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
     return 'https://veilforge.onrender.com';
   }
+  
+  // Try to get environment variable
   try {
-    return import.meta?.env?.VITE_API_URL || 'https://veilforge.onrender.com';
-  } catch {
-    return 'https://veilforge.onrender.com';
+    const envUrl = import.meta?.env?.VITE_API_URL;
+    if (envUrl) return envUrl;
+  } catch (error) {
+    console.warn('Environment variable access failed');
   }
+  
+  // Local development fallback
+  return 'http://localhost:8000';
 };
 const API_BASE_URL = getApiUrl();
 

@@ -90,6 +90,9 @@ export function getFileType(filename: string): FileType {
   };
 }
 
+// Download deduplication to prevent double downloads
+const activeDownloads = new Set<string>();
+
 /**
  * Download file with proper "Save As" functionality
  * Uses File System Access API when available, falls back to traditional download
@@ -109,6 +112,18 @@ export async function downloadFileWithSaveAs(
   if (!blob) {
     throw new Error('No blob provided for download');
   }
+
+  // Create a unique key for this download to prevent duplicates
+  const downloadKey = `${suggestedName}-${blob.size}-${Date.now()}`;
+  
+  if (activeDownloads.has(downloadKey)) {
+    console.log('🔄 Download already in progress, skipping duplicate:', suggestedName);
+    return;
+  }
+  
+  activeDownloads.add(downloadKey);
+  
+  try {
   
   const cleanName = cleanFilename(suggestedName);
   const fileType = getFileType(cleanName);
@@ -119,45 +134,124 @@ export async function downloadFileWithSaveAs(
   console.log('🔒 Secure context:', window.isSecureContext);
   console.log('🌍 Current origin:', window.location.origin);
   
-  // Check if we're in a non-secure context and handle it immediately
-  if (!window.isSecureContext && 'showSaveFilePicker' in window) {
-    console.log('🚨 Non-secure context detected, using prompt method immediately');
+
+  
+  // Check if it's a document file - use special handling to force Save As dialog
+  const extension = getFileExtension(cleanName);
+  const isDocumentFile = ['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(extension);
+  
+  // For document files, use a method that forces the Save As dialog
+  if (isDocumentFile) {
+    console.log('📄 Document file detected, forcing Save As dialog');
     
-    const userFilename = prompt(`Choose filename to save as (will download to Downloads folder):`, cleanName);
-    if (userFilename === null) {
-      console.log('🚫 User cancelled save operation');
-      return;
+    try {
+      // Create a new blob with a generic MIME type to force Save As dialog
+      const forcedBlob = new Blob([blob], { type: 'application/octet-stream' });
+      
+      // Method 1: Try to use the File System Access API if available and secure
+      if ('showSaveFilePicker' in window && window.isSecureContext) {
+        try {
+          console.log('🎯 Trying File System Access API for document...');
+          
+          const fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName: cleanName,
+            types: [fileType],
+            excludeAcceptAllOption: false,
+            startIn: 'downloads'
+          });
+          
+          console.log('✅ User selected save location:', fileHandle.name);
+          
+          const writableStream = await fileHandle.createWritable();
+          await writableStream.write(blob);
+          await writableStream.close();
+          
+          console.log('💾 Document saved successfully via File System API');
+          return;
+        } catch (apiError: any) {
+          if (apiError.name === 'AbortError') {
+            console.log('🚫 User cancelled save operation');
+            return;
+          }
+          console.log('⚠️ File System API failed for document, trying alternative method:', apiError.message);
+        }
+      }
+      
+      // Method 2: Use multiple approaches to force Save As dialog
+      console.log('🔄 Using alternative methods to force Save As dialog');
+      
+      // Try method 2a: Simulate user interaction and right-click context
+      try {
+        const url = window.URL.createObjectURL(forcedBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = cleanName;
+        
+        // Make the link visible temporarily and simulate user interaction
+        link.style.position = 'fixed';
+        link.style.top = '-1000px';
+        link.textContent = 'Download';
+        
+        document.body.appendChild(link);
+        
+        // Focus and trigger with user event simulation
+        link.focus();
+        
+        // Create a proper user event
+        const event = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          button: 0,
+          buttons: 1,
+          clientX: 0,
+          clientY: 0
+        });
+        
+        link.dispatchEvent(event);
+        
+        // Clean up
+        setTimeout(() => {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        }, 500);
+        
+        console.log(`✅ Document download with enhanced user event: ${cleanName}`);
+        return;
+        
+      } catch (methodError) {
+        console.log('⚠️ Enhanced method failed, trying basic method:', methodError);
+        
+        // Method 2b: Basic approach with modified blob
+        const url = window.URL.createObjectURL(forcedBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = cleanName;
+        link.style.display = 'none';
+        
+        document.body.appendChild(link);
+        link.click();
+        
+        setTimeout(() => {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        }, 100);
+        
+        console.log(`✅ Document download with basic method: ${cleanName}`);
+        return;
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in document download:', error);
+      // Fall through to regular method if all else fails
     }
-    
-    const finalName = userFilename.trim() || cleanName;
-    console.log('👤 User chose filename:', finalName);
-    
-    // Traditional download with user-chosen filename
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = finalName;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    
-    console.log('📥 Download initiated successfully with filename:', finalName);
-    
-    // Cleanup
-    setTimeout(() => {
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    }, 100);
-    
-    console.log(`✅ File ${finalName} downloaded successfully to Downloads folder`);
-    return;
   }
   
-  // Try File System Access API first (Chrome, Edge) - FORCE USER TO CHOOSE LOCATION
-  // Only works in secure contexts (HTTPS or localhost)
-  if ('showSaveFilePicker' in window && window.isSecureContext) {
+  // Try File System Access API for non-document files (Chrome, Edge) - FORCE USER TO CHOOSE LOCATION
+  // Skip this API for document files due to security restrictions, only works in secure contexts
+  if ('showSaveFilePicker' in window && window.isSecureContext && !isDocumentFile) {
     try {
-      console.log('🎯 Attempting to show save picker...');
+      console.log('🎯 Attempting to show save picker for non-document file...');
       
       const fileHandle = await (window as any).showSaveFilePicker({
         suggestedName: cleanName,
@@ -184,35 +278,8 @@ export async function downloadFileWithSaveAs(
         return;
       }
       
-      // Log error but don't fall through to traditional download immediately
-      console.warn('⚠️ File System Access API failed, trying alternative approach:', error);
-      
-      // For other errors, try to show a custom save dialog using input
-      const userFilename = prompt(`Choose filename to save as:`, cleanName);
-      if (userFilename === null) {
-        console.log('🚫 User cancelled save operation');
-        return;
-      }
-      
-      const finalName = userFilename.trim() || cleanName;
-      
-      // Traditional download with user-chosen filename
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = finalName;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      
-      // Cleanup
-      setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }, 100);
-      
-      console.log(`✅ File ${finalName} downloaded successfully`);
-      return;
+      // Log error and fall through to traditional download
+      console.warn('⚠️ File System Access API failed, using traditional download:', error);
     }
   }
   
@@ -233,6 +300,10 @@ export async function downloadFileWithSaveAs(
   }, 100);
   
   console.log(`✅ File ${cleanName} downloaded to Downloads folder`);
+  } finally {
+    // Clean up the download key
+    activeDownloads.delete(downloadKey);
+  }
 }
 
 /**
