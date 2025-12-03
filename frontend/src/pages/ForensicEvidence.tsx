@@ -592,10 +592,10 @@ const ForensicEvidence = () => {
           const operation = await ProjectFileService.createOperation(
             selectedProject.id,
             currentUser.id,
-            "forensic_embed",
-            undefined, // carrier file ID will be set later
-            undefined, // processed file ID will be set later
-            "forensic_evidence",
+            "embed", // use standard activity type
+            storedCarrierFile.id, // carrier file ID
+            storedHiddenFile.id, // processed file ID (evidence file)
+            "file", // use standard payload type for forensic files
             password.length > 0, // encryption enabled if password provided
             true, // assume success initially
             undefined
@@ -757,7 +757,7 @@ const ForensicEvidence = () => {
       if (currentUser && selectedProject) {
         try {
           // Store the stego file being extracted from
-          await ProjectFileService.storeUploadedFile(
+          const storedFile = await ProjectFileService.storeUploadedFile(
             selectedProject.id,
             extractFile,
             currentUser.id
@@ -767,10 +767,10 @@ const ForensicEvidence = () => {
           await ProjectFileService.createOperation(
             selectedProject.id,
             currentUser.id,
-            "forensic_extract",
-            undefined, // carrier file ID will be set later
-            undefined, // processed file ID will be set later
-            "forensic_evidence", // extracting forensic evidence data
+            "extract", // use standard activity type
+            storedFile.id, // carrier file ID (the file being extracted from)
+            undefined, // processed file ID will be set later when extraction completes
+            "file", // extracting forensic data as file type
             false, // extraction doesn't typically involve encryption
             true, // assume success initially
             undefined

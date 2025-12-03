@@ -741,7 +741,15 @@ export default function CopyrightProtection() {
       const copyrightData = {
         author_name: authorName.trim(),
         copyright_alias: copyrightAlias.trim(),
-        timestamp: userFriendlyTimestamp
+        timestamp: userFriendlyTimestamp,
+        // Add embedder information
+        embedder_email: currentUser?.email || 'unknown@example.com',
+        embedder_username: currentUser?.user_metadata?.username || currentUser?.email?.split('@')[0] || 'unknown_user',
+        embedder_account_created: currentUser?.created_at ? new Date(currentUser.created_at).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }) : 'Unknown date'
       };
       formData.append('text_content', JSON.stringify(copyrightData));
 
@@ -807,10 +815,10 @@ export default function CopyrightProtection() {
           const operation = await ProjectFileService.createOperation(
             selectedProject.id,
             currentUser.id,
-            batchMode ? "batch_copyright_embed" : "copyright_embed",
+            "embed", // use standard activity type
             undefined, // carrier file ID will be set later
             undefined, // processed file ID will be set later
-            "copyright_text",
+            "text", // use simple payload type
             true, // copyright always uses encryption
             true, // assume success initially
             undefined
@@ -919,10 +927,10 @@ export default function CopyrightProtection() {
           await ProjectFileService.createOperation(
             selectedProject.id,
             currentUser.id,
-            "copyright_extract",
+            "extract", // use standard activity type
             undefined, // carrier file ID will be set later
             undefined, // processed file ID will be set later
-            "copyright_text", // extracting copyright data
+            "text", // extracting copyright data
             false, // extraction doesn't typically involve encryption
             true, // assume success initially
             undefined

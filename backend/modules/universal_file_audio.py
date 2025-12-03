@@ -312,8 +312,13 @@ class UniversalFileAudio:
                 coeff_idx = bit_idx * 4  # Every 4th coefficient to match embedding
                 if coeff_idx < len(detail_band):
                     coeff = detail_band[coeff_idx]
-                    # Simple positive/negative threshold extraction
-                    bit_value = 1 if coeff > 0 else 0
+                    # Robust positive/negative threshold extraction with precision handling
+                    threshold = 1e-12
+                    if abs(coeff) < threshold:
+                        # If coefficient is too close to zero, default to 0
+                        bit_value = 0
+                    else:
+                        bit_value = 1 if coeff > 0 else 0
                     all_bits.append(str(bit_value))
         
         print(f"📊 Total extracted bits: {len(all_bits)}")
@@ -579,8 +584,8 @@ class UniversalFileAudio:
                     # RELIABLE FIX: Use consistent magnitude-based embedding for reliable extraction
                     current_coeff = detail_band[coeff_idx]
                     
-                    # Set a consistent magnitude that's detectable but not too large
-                    base_magnitude = max(0.05, abs(current_coeff) * 0.3)
+                    # Set a consistent magnitude that's detectable and robust
+                    base_magnitude = max(0.1, abs(current_coeff) * 0.5)
                     
                     # Clear embedding: positive for 1, negative for 0
                     if bit_val == 1:
@@ -674,8 +679,15 @@ class UniversalFileAudio:
                     coeff_idx = offset + (bit_idx * spacing)
                     if coeff_idx < len(detail_band):
                         coeff = detail_band[coeff_idx]
-                        # Simple extraction: positive = 1, negative = 0
-                        bit_value = 1 if coeff > 0 else 0
+                        # More robust extraction with threshold to handle precision issues
+                        # Use a small threshold to avoid noise-related errors
+                        threshold = 1e-6
+                        if abs(coeff) < threshold:
+                            # If coefficient is too close to zero, treat as 0
+                            bit_value = 0
+                        else:
+                            # Clear distinction: positive = 1, negative = 0
+                            bit_value = 1 if coeff > 0 else 0
                         extracted_bits.append(str(bit_value))
                 
                 # Test if this produces valid magic header
@@ -771,12 +783,19 @@ class UniversalFileAudio:
             # Decrypt if password was used
             if self.password:
                 try:
+                    print(f"[SIMPLE AUDIO] Attempting decryption with password: {repr(self.password)}")
+                    print(f"[SIMPLE AUDIO] Encrypted data length: {len(data_bytes)} bytes")
+                    print(f"[SIMPLE AUDIO] Encrypted data first 20 bytes: {data_bytes[:20]}")
                     final_data = self._decrypt_data(data_bytes)
-                    print(f"[SIMPLE AUDIO] Decrypted successfully")
+                    print(f"[SIMPLE AUDIO] Decrypted successfully, result length: {len(final_data)} bytes")
                 except Exception as e:
                     print(f"[SIMPLE AUDIO] Decryption failed: {e}")
+                    print(f"[SIMPLE AUDIO] Error type: {type(e)}")
+                    import traceback
+                    traceback.print_exc()
                     return None
             else:
+                print(f"[SIMPLE AUDIO] No password set, using raw data")
                 final_data = data_bytes
             
             # Use original filename if available, otherwise detect format

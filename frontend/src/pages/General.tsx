@@ -35,6 +35,45 @@ import {
   RefreshCw
 } from "lucide-react";
 
+// Helper function to format layered container descriptions for display
+const formatLayeredContainerDescription = (data: any): string => {
+  try {
+    // Check if we have a layered container
+    if (data.type === 'layered_container' && data.layers && Array.isArray(data.layers)) {
+      const layerCount = data.layers.length;
+      
+      if (layerCount === 1) {
+        // Single layer - show the filename
+        const layer = data.layers[0];
+        const filename = layer.filename || 'extracted_file';
+        // Clean filename for display
+        const cleanName = filename.replace(/^(stego_|carrier_|content_)/, '')
+                                  .replace(/_\d{10}_[a-f0-9]{8}/g, '')
+                                  .replace(/_+/g, '_')
+                                  .replace(/^_|_$/g, '');
+        return `Extracted file: ${cleanName || 'file'}`;
+      } else {
+        // Multiple layers - show count and filenames
+        const fileNames = data.layers
+          .map((layer: any) => {
+            const filename = layer.filename || 'file';
+            return filename.replace(/^(stego_|carrier_|content_)/, '')
+                          .replace(/_\d{10}_[a-f0-9]{8}/g, '')
+                          .replace(/_+/g, '_')
+                          .replace(/^_|_$/g, '') || 'file';
+          })
+          .join(', ');
+        return `Extracted ${layerCount} files: ${fileNames}`;
+      }
+    }
+  } catch (e) {
+    // Not a layered container
+  }
+  
+  // Return original data as string if not a layered container
+  return typeof data === 'string' ? data : JSON.stringify(data);
+};
+
 // API Service Integration
 const getApiUrl = () => {
   // Check if we're in production (Vercel deployment)
@@ -240,20 +279,55 @@ export default function General() {
           let description = "";
           let metadata = {};
           
-          try {
-            if (project.description) {
-              const parsed = JSON.parse(project.description);
-              if (parsed.description !== undefined) {
-                description = parsed.description || "";
-                metadata = parsed.metadata || {};
-              } else {
-                // Legacy format - just a string
+          // Parse project description properly
+          if (project.description) {
+            if (project.description.trim().startsWith('{')) {
+              try {
+                const parsed = JSON.parse(project.description);
+                if (parsed.description !== undefined) {
+                  // Standard project format with metadata - extract the inner description
+                  description = parsed.description || "";
+                  metadata = parsed.metadata || {};
+                  
+                  // Check if we have extraction results with layered containers in metadata
+                  if (parsed.metadata && parsed.metadata.extractedContent) {
+                    const extractedContent = parsed.metadata.extractedContent;
+                    
+                    // Check if extractedContent has layered container in text_content
+                    if (extractedContent.text_content) {
+                      try {
+                        const layeredData = JSON.parse(extractedContent.text_content);
+                        if (layeredData.type === 'layered_container') {
+                          const formattedDesc = formatLayeredContainerDescription(layeredData);
+                          description = formattedDesc;
+                        }
+                      } catch (e) {
+                        // Not a layered container in text_content
+                        if (extractedContent.extracted_filename) {
+                          description = `Extracted file: ${extractedContent.extracted_filename}`;
+                        }
+                      }
+                    } else if (extractedContent.extracted_filename) {
+                      description = `Extracted file: ${extractedContent.extracted_filename}`;
+                    }
+                  }
+                } else if (parsed.type === 'layered_container') {
+                  // Direct layered container format
+                  description = formatLayeredContainerDescription(parsed);
+                  metadata = {};
+                } else {
+                  // JSON object without description field - use as plain text
+                  description = project.description;
+                }
+              } catch (e) {
+                console.warn('Failed to parse project description JSON:', e);
+                // If JSON parsing fails, use as plain text
                 description = project.description;
               }
+            } else {
+              // Plain text description
+              description = project.description;
             }
-          } catch (e) {
-            // Legacy format - just a string
-            description = project.description || "";
           }
           
           setProjectDescription(description);

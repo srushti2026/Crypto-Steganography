@@ -1076,6 +1076,39 @@ class VideoSteganography:
             print(f"[VideoStego] Data type: {type(extracted_data)}")
             print(f"[VideoStego] Data preview: {extracted_data[:50] if len(extracted_data) > 50 else extracted_data}")
             
+            # 🎯 CHECK FOR LAYERED CONTAINER - Override filename if layered container detected
+            if isinstance(extracted_data, bytes):
+                try:
+                    decoded_data = extracted_data.decode('utf-8')
+                    import json
+                    parsed_data = json.loads(decoded_data)
+                    
+                    if (isinstance(parsed_data, dict) and 
+                        parsed_data.get('type') == 'layered_container' and
+                        'layers' in parsed_data and len(parsed_data['layers']) > 0):
+                        
+                        # Extract filename from first layer
+                        first_layer = parsed_data['layers'][0]
+                        if isinstance(first_layer, dict) and 'filename' in first_layer:
+                            original_filename = first_layer['filename']
+                            print(f"[VideoStego] 🎯 LAYERED CONTAINER DETECTED! Overriding filename from '{metadata['filename']}' to '{original_filename}'")
+                            metadata['filename'] = original_filename
+                            
+                            # Extract the actual file content
+                            if 'content' in first_layer:
+                                import base64
+                                actual_file_data = base64.b64decode(first_layer['content'])
+                                print(f"[VideoStego] 📁 Extracted original file content: {len(actual_file_data)} bytes")
+                                extracted_data = actual_file_data
+                        else:
+                            print(f"[VideoStego] ⚠️ Layered container found but no filename in first layer")
+                    else:
+                        print(f"[VideoStego] 📋 Not a layered container (type: {parsed_data.get('type', 'unknown')})")
+                except (UnicodeDecodeError, json.JSONDecodeError) as e:
+                    print(f"[VideoStego] 📋 Not a text/JSON container: {e}")
+                except Exception as e:
+                    print(f"[VideoStego] ❌ Error checking for layered container: {e}")
+            
             # Cleanup
             if not os.path.isdir(video_path):
                 cap.release()

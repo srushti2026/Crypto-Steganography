@@ -361,18 +361,18 @@ class MultiLayerSteganography:
         
         print(f"[MULTI-LAYER] Found {len(existing_layers)} layer(s)")
         
-        # SECURITY FIX: Extract only the LAST (most recent) layer that matches the password
-        # This prevents old embedded data from contaminating new extractions
+        # EXTRACT ALL LAYERS: Extract all layers that match the password
+        # This allows proper multi-layer functionality
         extracted_layers = []
         
-        # Process layers in reverse order (most recent first)
-        for layer_info in reversed(existing_layers):
+        # Process layers in order (oldest to newest for proper numbering)
+        for layer_info in existing_layers:
             try:
                 layer_data = self._extract_single_layer(file_data, layer_info, password)
                 if layer_data:
                     extracted_layers.append(layer_data)
-                    print(f"[MULTI-LAYER] ✅ Extracted most recent layer #{layer_info['layer_number']}")
-                    break  # CRITICAL: Only extract the first matching layer (most recent)
+                    print(f"[MULTI-LAYER] ✅ Extracted layer #{layer_info['layer_number']}")
+                    # Continue to extract ALL matching layers, not just the first one
             except Exception as e:
                 print(f"[MULTI-LAYER] ⚠️ Failed to extract layer #{layer_info['layer_number']}: {e}")
         
@@ -622,13 +622,27 @@ class UniversalFileSteganography(MultiLayerSteganography):
             if output_dir:
                 return result
             else:
-                # For backward compatibility, return tuple format
-                layers = result.get('extracted_layers', [])
-                if layers:
-                    first_layer = layers[0]
-                    filename = first_layer.get('filename', 'extracted_data.txt')
-                    content = first_layer.get('content', b'')
-                    return (content, filename)
+                # Handle single extraction case (most common for forensic)
+                if result.get('single_extraction'):
+                    # Single layer was extracted successfully
+                    filename = result.get('filename', 'extracted_data.txt')
+                    # The extracted_data is already decoded as text for single layers
+                    text_data = result.get('extracted_data', '')
+                    
+                    # For forensic extraction, we need to return the raw text (not re-encode)
+                    # since the forensic data is JSON text that was embedded as text
+                    if isinstance(text_data, str):
+                        return (text_data.encode('utf-8'), filename)  # Return as bytes for consistency
+                    else:
+                        return (text_data, filename)
+                else:
+                    # Multiple layers - get from extracted_layers array
+                    layers = result.get('extracted_layers', [])
+                    if layers:
+                        first_layer = layers[0]
+                        filename = first_layer.get('filename', 'extracted_data.txt')
+                        content = first_layer.get('content', b'')
+                        return (content, filename)
                 return None
         
         except Exception as e:

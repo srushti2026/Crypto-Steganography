@@ -66,6 +66,56 @@ const cleanFilenameForDisplay = (filename: string): string => {
  return extension ? `${baseName}.${extension}` : baseName;
 };
 
+// Helper function to format layered container descriptions for display
+const formatLayeredContainerDescription = (extractedContent: any): string => {
+ if (!extractedContent) return "";
+ 
+ // Check if we have a layered container in text_content or preview
+ const textContent = extractedContent.text_content || extractedContent.preview || "";
+ 
+ try {
+   // Try to parse as JSON layered container
+   const parsed = JSON.parse(textContent);
+   
+   if (parsed.type === 'layered_container' && parsed.layers && Array.isArray(parsed.layers)) {
+     const layerCount = parsed.layers.length;
+     
+     if (layerCount === 1) {
+       // Single layer - show the filename
+       const layer = parsed.layers[0];
+       const filename = layer.filename || 'extracted_file';
+       const cleanName = cleanFilenameForDisplay(filename);
+       return `Extracted file: ${cleanName}`;
+     } else {
+       // Multiple layers - show count and filenames
+       const fileNames = parsed.layers
+         .map((layer: any) => cleanFilenameForDisplay(layer.filename || 'file'))
+         .join(', ');
+       return `Extracted ${layerCount} files: ${fileNames}`;
+     }
+   }
+ } catch (e) {
+   // Not a JSON layered container, handle normally
+ }
+ 
+ // For regular extraction results
+ if (extractedContent.extracted_filename) {
+   const cleanName = cleanFilenameForDisplay(extractedContent.extracted_filename);
+   return `Extracted file: ${cleanName}`;
+ }
+ 
+ // Fallback to preview or filename
+ if (extractedContent.filename) {
+   const cleanName = cleanFilenameForDisplay(extractedContent.filename);
+   return `File: ${cleanName}`;
+ }
+ 
+ // Final fallback
+ return typeof textContent === 'string' && textContent.length > 0 
+   ? (textContent.length > 100 ? textContent.substring(0, 100) + '...' : textContent)
+   : "Extraction completed";
+};
+
 export default function PixelVault() {
  const navigate = useNavigate();
  const location = useLocation();

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Enhanced FastAPI Web Application for React Frontend Integration
 Provides comprehensive API endpoints for the React steganography application
 with Supabase integration - SECURED WITH ENVIRONMENT VARIABLES
@@ -480,6 +480,8 @@ def detect_file_format_from_binary(binary_content):
         return '.webp'
     elif binary_content.startswith(b'RIFF') and len(binary_content) > 12 and b'WAVE' in binary_content[8:12]:
         return '.wav'
+    elif binary_content.startswith(b'RIFF') and len(binary_content) > 12 and b'AVI ' in binary_content[8:12]:
+        return '.avi'
     elif binary_content.startswith(b'ID3') or binary_content[0:2] in [b'\xff\xfb', b'\xff\xf3', b'\xff\xf2']:
         return '.mp3'
     elif binary_content.startswith(b'%PDF'):
@@ -492,6 +494,26 @@ def detect_file_format_from_binary(binary_content):
             return '.xlsx'
         else:
             return '.zip'
+    # Video formats
+    elif len(binary_content) >= 8 and binary_content[4:8] == b'ftyp':
+        # MP4/MOV container format
+        if b'isom' in binary_content[8:20] or b'mp41' in binary_content[8:20] or b'mp42' in binary_content[8:20]:
+            return '.mp4'
+        elif b'qt  ' in binary_content[8:12]:
+            return '.mov'
+        else:
+            return '.mp4'  # Default to mp4 for ftyp containers
+    elif binary_content.startswith(b'\x1a\x45\xdf\xa3'):
+        return '.mkv'
+    elif binary_content.startswith(b'FLV\x01'):
+        return '.flv'
+    # Audio formats
+    elif binary_content.startswith(b'fLaC'):
+        return '.flac'
+    elif binary_content.startswith(b'OggS'):
+        return '.ogg'
+    elif len(binary_content) >= 12 and binary_content[0:4] == b'RIFF' and binary_content[8:12] == b'WAVE':
+        return '.wav'
     
     # If no format detected, return None to keep original filename
     return None
@@ -637,6 +659,18 @@ def extract_layered_data_container(container_data):
             # Not a layered container, return as-is
             return [(container_data, "extracted_data.bin")]
         
+        # DEBUG: Log container structure
+        total_layers = len(container.get("layers", []))
+        print(f"[EXTRACT CONTAINER] Found layered container with {total_layers} layers")
+        
+        # DEBUG: Log layer details
+        for i, layer in enumerate(container.get("layers", [])):
+            if layer and isinstance(layer, dict):
+                filename = layer.get("filename", "unknown")
+                layer_type = layer.get("type", "unknown")
+                content_size = len(layer.get("content", ""))
+                print(f"[EXTRACT CONTAINER] Layer {i}: filename='{filename}', type='{layer_type}', content_size={content_size}")
+        
         extracted_layers = []
         for layer in container.get("layers", []):
             # Add defensive check for None layer
@@ -664,14 +698,21 @@ def extract_layered_data_container(container_data):
                     # Convert back to string for text content
                     decoded_content = decoded_content.decode('utf-8')
                 else:
-                    # For binary content, detect file format and fix filename
+                    # For binary content, preserve original filename from container
+                    # Only use format detection as fallback for generic filenames
                     if isinstance(decoded_content, bytes) and decoded_content:
-                        detected_extension = detect_file_format_from_binary(decoded_content)
-                        if detected_extension and (filename.endswith('.bin') or 'layer_' in filename):
-                            # Replace generic filename with detected format
-                            layer_num = layer.get('index', len(extracted_layers) + 1)
-                            filename = f"layer_{layer_num}{detected_extension}"
-                            print(f"[EXTRACT] Detected format for layer {layer_num}: {detected_extension}")
+                        # Check if we need to detect format (for generic filenames only)
+                        if filename.endswith('.bin') or filename.startswith('layer_') and '.' not in filename:
+                            detected_extension = detect_file_format_from_binary(decoded_content)
+                            if detected_extension:
+                                layer_num = layer.get('index', len(extracted_layers) + 1)
+                                filename = f"layer_{layer_num}{detected_extension}"
+                                print(f"[EXTRACT] Detected format for layer {layer_num}: {detected_extension}")
+                            else:
+                                print(f"[EXTRACT] Could not detect format, keeping filename: {filename}")
+                        else:
+                            # Preserve original filename - it already has the correct extension
+                            print(f"[EXTRACT] Preserving original filename: {filename}")
                 
                 extracted_layers.append((decoded_content, filename))
             except Exception as decode_error:
@@ -718,9 +759,27 @@ def translate_error_message(error_msg: str, carrier_type: str) -> str:
     if "not supported" in error_lower or "unsupported" in error_lower:
         return f"File type not supported for {carrier_type} steganography. Please try with a different file format."
     
-    # Decryption issues
+    # IMPORTANT: Check SPECIFIC forensic patterns FIRST before generic patterns
+    
+    # Forensic-specific password mismatch errors (preserve specific messages)
+    if "audio forensic extraction" in error_lower and "password is incorrect" in error_lower:
+        return error_msg  # Return the specific forensic error message as-is
+    
+    # Better forensic password mismatch detection - CHECK THIS FIRST
+    if "no hidden data found in the file" in error_lower and ("password may be incorrect" in error_lower or "forensic steganography" in error_lower):
+        return "🔐 Password verification failed. The audio file contains encrypted forensic data, but the password you entered does not match. Please check the password you used during embedding, or use the 'Load' button if you saved the password with your project."
+    
+    # Generic decryption issues (AFTER forensic patterns)
     if "decryption" in error_lower or "wrong password" in error_lower:
         return "Failed to extract data. Please check your password or ensure the file contains hidden data."
+    
+    # Password mismatch for forensic data
+    if "password is incorrect" in error_lower:
+        return "The audio file contains encrypted forensic data, but the password is incorrect. Please verify the password used during embedding, or try again with no password if the data was not encrypted."
+    
+    # Audio-specific UTF-8 decode errors (usually indicate password mismatch)
+    if carrier_type == "audio" and any(issue in error_lower for issue in ["utf-8", "decode", "continuation byte", "codec"]):
+        return "Audio extraction failed - this may be due to a password mismatch or the file may not contain forensic data. Please verify the password or try with no password."
     
     # Bool encoding (shouldn't happen now but just in case)
     if "bool" in error_lower and "encode" in error_lower:
@@ -730,8 +789,11 @@ def translate_error_message(error_msg: str, carrier_type: str) -> str:
     if "format" in error_lower and ("corrupt" in error_lower or "invalid" in error_lower):
         return f"The {carrier_type} file appears to be corrupted or in an unsupported format. Please try with a different file."
     
-    # Generic fallback for other technical errors
-    if len(error_msg) > 100 or any(word in error_lower for word in ['exception', 'traceback', 'error:', 'failed:']):
+    # IMPORTANT: Check for specific long forensic messages BEFORE generic fallback
+    # This prevents the generic "Unable to process..." message from overriding specific forensic errors
+    
+    # Generic fallback for other technical errors (but exclude forensic-specific messages)
+    if (len(error_msg) > 100 or any(word in error_lower for word in ['exception', 'traceback', 'error:', 'failed:'])) and not any(forensic_term in error_lower for forensic_term in ['forensic', 'password may be incorrect', 'no hidden data found']):
         return f"Unable to process the {carrier_type} file. Please ensure the file is valid and try again."
     
     # If it's already user-friendly, return as-is
@@ -755,7 +817,11 @@ def get_steganography_manager(carrier_type: str, password: str = ""):
             return manager_class()
         elif carrier_type == "video":
             # VideoSteganographyManager takes password in __init__
-            return manager_class(password=password)
+            print(f"[MANAGER DEBUG] Creating VideoSteganographyManager with password: '{password}' (length: {len(password)})")
+            print(f"[MANAGER DEBUG] Manager class: {manager_class}")
+            manager = manager_class(password=password)
+            print(f"[MANAGER DEBUG] Created manager, checking password: '{getattr(manager, 'password', 'NO ATTR')}' (length: {len(getattr(manager, 'password', '')) if hasattr(manager, 'password') else 0})")
+            return manager
         else:
             # Try with password first, fallback to no password
             try:
@@ -2061,6 +2127,37 @@ async def analyze_file(
 # JOB STATUS AND DOWNLOAD ENDPOINTS
 # ============================================================================
 
+# Simple file download endpoint for generated images
+@app.get("/api/download/{filename}")
+async def download_file(filename: str):
+    """Download a file directly by filename"""
+    try:
+        file_path = OUTPUT_DIR / filename
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Determine media type based on file extension
+        media_type = "application/octet-stream"
+        extension = filename.lower().split('.')[-1]
+        
+        if extension in ['png', 'jpg', 'jpeg']:
+            media_type = f"image/{extension}"
+        elif extension in ['mp4', 'avi', 'mov']:
+            media_type = f"video/{extension}"
+        elif extension in ['mp3', 'wav']:
+            media_type = f"audio/{extension}"
+        elif extension == 'zip':
+            media_type = "application/zip"
+        
+        return FileResponse(
+            path=str(file_path),
+            filename=filename,
+            media_type=media_type
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Handle OPTIONS preflight requests for operations status endpoint
 @app.options("/api/operations/{operation_id}/status")
 async def operations_status_options(operation_id: str):
@@ -2458,9 +2555,14 @@ async def process_embed_operation(
         update_job_status(operation_id, "processing", 50, "Performing steganography")
         
         # Get appropriate steganography manager
+        print(f"[EMBED DEBUG] Creating manager for {carrier_type} with password: '{password}' (length: {len(password) if password else 0})")
         manager = get_steganography_manager(carrier_type, password)
         if not manager:
             raise Exception(f"No manager available for {carrier_type}")
+        
+        # Debug: Check if manager has password correctly set
+        if hasattr(manager, 'password'):
+            print(f"[EMBED DEBUG] Manager password set to: '{manager.password}' (length: {len(manager.password) if manager.password else 0})")
         
         update_job_status(operation_id, "processing", 40, "Checking for existing hidden data (optional)")
         
@@ -2709,13 +2811,14 @@ async def process_embed_operation(
             try:
                 print(f"[DEBUG VIDEO] About to call video manager.hide_data")
                 print(f"[DEBUG VIDEO] Parameters: video_path={carrier_file_path}, output_path={str(output_path)}")
-                # VideoSteganographyManager.hide_data() takes parameters: video_path, payload, output_path, is_file, filename
+                # VideoSteganographyManager.hide_data() takes parameters: video_path, payload, output_path, is_file, filename, project_name
                 manager_result = manager.hide_data(
                     video_path=carrier_file_path,
                     payload=content_to_hide,
                     output_path=str(output_path),
                     is_file=is_file,
-                    filename=original_filename
+                    filename=original_filename,
+                    project_name=project_name
                 )
                 print(f"[DEBUG VIDEO] Video manager returned: {manager_result}")
                 success = manager_result.get("success", False)
@@ -3000,12 +3103,14 @@ async def process_batch_embed_operation(
         print(f"[BATCH] Embedding in file {file_index + 1}: {carrier_type}, is_file: {is_file}")
         
         if carrier_type == "video":
-            # VideoSteganographyManager.hide_data() takes 4 parameters: video_path, payload, output_path, is_file
+            # VideoSteganographyManager.hide_data() takes parameters: video_path, payload, output_path, is_file, filename, project_name
             result = manager.hide_data(
                 video_path=carrier_file_path,
                 payload=content_to_hide,
                 output_path=str(output_path),
-                is_file=is_file
+                is_file=is_file,
+                filename=original_filename,
+                project_name=project_name
             )
             success = result.get("success", False)
             actual_output_path = result.get("output_path", str(output_path))
@@ -3191,34 +3296,56 @@ async def process_forensic_embed_operation(
         
         # Perform the embedding using text mode since we're embedding JSON
         if carrier_type == "video":
-            # VideoSteganographyManager.hide_data() takes 4 parameters: video_path, payload, output_path, is_file
+            # VideoSteganographyManager.hide_data() takes parameters: video_path, payload, output_path, is_file, filename, project_name
             manager_result = manager.hide_data(
                 video_path=carrier_file_path,
                 payload=forensic_content,
                 output_path=str(output_path),
-                is_file=False  # Embedding as text, not file
+                is_file=False,  # Embedding as text, not file
+                filename=f"forensic_case_{metadata.get('case_id', 'unknown')}.json",
+                project_name="forensic"  # Default project name for forensic operations
             )
         else:
             # Check if manager supports original_filename parameter
             import inspect
             sig = inspect.signature(manager.hide_data)
-            if 'original_filename' in sig.parameters:
-                manager_result = manager.hide_data(
-                    carrier_file_path,
-                    forensic_content,
-                    str(output_path),
-                    password=password,
-                    is_file=False,  # Embedding as text
-                    original_filename=f"forensic_case_{metadata.get('case_id', 'unknown')}.json"
-                )
+            
+            # Audio manager doesn't accept password parameter (it's set during init)
+            if carrier_type == "audio":
+                if 'original_filename' in sig.parameters:
+                    manager_result = manager.hide_data(
+                        carrier_file_path,
+                        forensic_content,
+                        str(output_path),
+                        is_file=False,  # Embedding as text
+                        original_filename=f"forensic_case_{metadata.get('case_id', 'unknown')}.json"
+                    )
+                else:
+                    manager_result = manager.hide_data(
+                        carrier_file_path,
+                        forensic_content,
+                        str(output_path),
+                        is_file=False  # Embedding as text
+                    )
             else:
-                manager_result = manager.hide_data(
-                    carrier_file_path,
-                    forensic_content,
-                    str(output_path),
-                    password=password,
-                    is_file=False  # Embedding as text
-                )
+                # Other managers expect password parameter
+                if 'original_filename' in sig.parameters:
+                    manager_result = manager.hide_data(
+                        carrier_file_path,
+                        forensic_content,
+                        str(output_path),
+                        password=password,
+                        is_file=False,  # Embedding as text
+                        original_filename=f"forensic_case_{metadata.get('case_id', 'unknown')}.json"
+                    )
+                else:
+                    manager_result = manager.hide_data(
+                        carrier_file_path,
+                        forensic_content,
+                        str(output_path),
+                        password=password,
+                        is_file=False  # Embedding as text
+                    )
         
         success = manager_result.get("success", False)
         
@@ -3288,14 +3415,20 @@ def detect_filename_from_content(data):
     if not data:
         return "extracted_file.bin"
     
-    # Convert to bytes if it's a string
-    if isinstance(data, str):
+    # Handle different data types from various steganography managers
+    if isinstance(data, dict):
+        # Video and some other managers return dict - use generic name
+        return "extracted_data.bin"
+    elif isinstance(data, str):
         try:
             data_bytes = data.encode('utf-8')
         except:
             return "extracted_file.txt"
-    else:
+    elif isinstance(data, bytes):
         data_bytes = data
+    else:
+        # Unknown type - use generic name
+        return "extracted_file.bin"
     
     # Check for common file signatures
     if data_bytes.startswith(b'\x89PNG\r\n\x1a\n'):
@@ -3355,52 +3488,243 @@ async def process_forensic_extract_operation(
         update_job_status(operation_id, "processing", 30, "Starting forensic extraction")
         
         # Get appropriate steganography manager
+        print(f"[FORENSIC DEBUG] Getting manager for {carrier_type} with password: {'***' if password else 'None'}")
+        print(f"[FORENSIC DEBUG] Password length: {len(password) if password else 0}")
+        print(f"[FORENSIC DEBUG] Password repr: {repr(password)}")
         manager = get_steganography_manager(carrier_type, password)
         if not manager:
             raise Exception(f"No manager available for {carrier_type}")
         
+        print(f"[FORENSIC DEBUG] Manager created: {type(manager)}")
+        if hasattr(manager, 'password'):
+            print(f"[FORENSIC DEBUG] Manager password set: {repr(getattr(manager, 'password'))}")
+        else:
+            print(f"[FORENSIC DEBUG] Manager has no password attribute")
         update_job_status(operation_id, "processing", 50, "Extracting forensic evidence")
         
-        # Extract data
-        print(f"[FORENSIC EXTRACT DEBUG] About to call manager.extract_data() with password")
-        extraction_result = manager.extract_data(stego_file_path, password=password)
-        print(f"[FORENSIC EXTRACT DEBUG] Manager returned: {type(extraction_result)}")
+        # Extract data - try multiple approaches for forensic files
+        print(f"[FORENSIC EXTRACT DEBUG] About to call manager.extract_data() with password: {'***' if password else 'None'}")
+        print(f"[FORENSIC EXTRACT DEBUG] Manager type: {type(manager)}")
+        print(f"[FORENSIC EXTRACT DEBUG] File path: {stego_file_path}")
         
-        # Handle tuple return (data, filename) from some managers
-        if isinstance(extraction_result, tuple):
-            extracted_data, original_filename = extraction_result
-            print(f"[FORENSIC EXTRACT DEBUG] Tuple result - data: {type(extracted_data)}, filename: {original_filename}")
-        else:
-            extracted_data = extraction_result
-            original_filename = None
-            print(f"[FORENSIC EXTRACT DEBUG] Single result - data: {type(extracted_data)}")
+        extraction_result = None
+        extracted_data = None
+        original_filename = None
         
-        if not extracted_data:
-            raise Exception("No hidden data found in the file")
+        # Try different extraction approaches for forensic files
+        try:
+            # First attempt: normal extraction
+            print(f"[FORENSIC EXTRACT DEBUG] Calling manager.extract_data()...")
+            
+            # Audio manager doesn't accept password parameter (it's set during init)
+            if carrier_type == "audio":
+                print(f"[AUDIO DEBUG] *** REACHED AUDIO EXTRACTION CODE ***")
+                extraction_result = manager.extract_data(stego_file_path)
+                
+                # AUDIO-SPECIFIC: If extraction returns data but it can't be decoded as UTF-8,
+                # try password recovery (this handles password mismatch cases)
+                if extraction_result and isinstance(extraction_result, tuple):
+                    test_data, test_filename = extraction_result
+                    if test_data:
+                        try:
+                            # Try to decode as UTF-8 to check if it's valid forensic JSON
+                            if isinstance(test_data, bytes):
+                                test_text = test_data.decode('utf-8')
+                            else:
+                                test_text = str(test_data)
+                            
+                            # Try to parse as JSON to verify it's valid forensic data
+                            import json
+                            test_json = json.loads(test_text)
+                            if test_json.get("type") != "forensic_evidence":
+                                raise ValueError("Not forensic evidence")
+                                
+                            print(f"[AUDIO DEBUG] Primary extraction successful - valid forensic data")
+                            
+                        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as decode_error:
+                            print(f"[AUDIO RECOVERY] Primary extraction data invalid ({decode_error}), trying password recovery...")
+                            
+                            # Try common passwords for forensic audio files
+                            recovery_passwords = ["", "forensic", None]
+                            
+                            for recovery_pwd in recovery_passwords:
+                                try:
+                                    print(f"[AUDIO RECOVERY] Trying password: {recovery_pwd if recovery_pwd is not None else 'None'}")
+                                    recovery_manager = get_steganography_manager(carrier_type, recovery_pwd or "")
+                                    recovery_result = recovery_manager.extract_data(stego_file_path)
+                                    
+                                    if recovery_result and isinstance(recovery_result, tuple):
+                                        recovery_data, recovery_filename = recovery_result
+                                        if recovery_data:
+                                            # Test if this recovery attempt worked
+                                            try:
+                                                if isinstance(recovery_data, bytes):
+                                                    recovery_text = recovery_data.decode('utf-8')
+                                                else:
+                                                    recovery_text = str(recovery_data)
+                                                
+                                                recovery_json = json.loads(recovery_text)
+                                                if recovery_json.get("type") == "forensic_evidence":
+                                                    print(f"[AUDIO RECOVERY] ✅ Recovery successful with password: {recovery_pwd if recovery_pwd is not None else 'None'}")
+                                                    extraction_result = recovery_result
+                                                    break
+                                                    
+                                            except (UnicodeDecodeError, json.JSONDecodeError):
+                                                continue
+                                                
+                                except Exception as recovery_error:
+                                    print(f"[AUDIO RECOVERY] Recovery failed with password {recovery_pwd}: {recovery_error}")
+                                    continue
+                            else:
+                                print(f"[AUDIO RECOVERY] All recovery attempts failed")
+                                # Provide a specific error message for password mismatch
+                                raise Exception("Audio forensic extraction detected encrypted data but the provided password is incorrect. Please verify the password used during embedding, or try with no password if the data was not encrypted.")
+                                
+            else:
+                extraction_result = manager.extract_data(stego_file_path, password=password)
+                
+            print(f"[FORENSIC EXTRACT DEBUG] Manager returned: {type(extraction_result)}, value: {extraction_result}")
+            
+            # Handle tuple return (data, filename) from some managers
+            if isinstance(extraction_result, tuple):
+                extracted_data, original_filename = extraction_result
+                print(f"[FORENSIC EXTRACT DEBUG] Tuple result - data: {type(extracted_data)}, length: {len(extracted_data) if extracted_data else 0}, filename: {original_filename}")
+            else:
+                extracted_data = extraction_result
+                original_filename = None
+                print(f"[FORENSIC EXTRACT DEBUG] Single result - data: {type(extracted_data)}, length: {len(extracted_data) if extracted_data else 0}")
+            
+            # CRITICAL: Normalize extracted data based on manager type
+            if isinstance(extracted_data, dict):
+                # Video/Audio managers return dict format - extract the actual data
+                print(f"[FORENSIC EXTRACT DEBUG] Manager returned dict with keys: {list(extracted_data.keys())}")
+                
+                # Check for common dict keys that contain the actual data
+                if 'extracted_data' in extracted_data:
+                    extracted_data = extracted_data['extracted_data']
+                    print(f"[FORENSIC EXTRACT DEBUG] Extracted 'extracted_data' field: {type(extracted_data)}")
+                elif 'content' in extracted_data:
+                    extracted_data = extracted_data['content'] 
+                    print(f"[FORENSIC EXTRACT DEBUG] Extracted 'content' field: {type(extracted_data)}")
+                elif 'data' in extracted_data:
+                    extracted_data = extracted_data['data']
+                    print(f"[FORENSIC EXTRACT DEBUG] Extracted 'data' field: {type(extracted_data)}")
+                else:
+                    # Try to convert dict to string as fallback
+                    print(f"[FORENSIC EXTRACT DEBUG] ⚠️ Dict format not recognized, using string representation")
+                    extracted_data = str(extracted_data)
+            
+            # Convert bytes to string for forensic JSON parsing  
+            if isinstance(extracted_data, bytes):
+                try:
+                    decoded_data = extracted_data.decode('utf-8')
+                    print(f"[FORENSIC EXTRACT DEBUG] ✅ Successfully decoded {len(extracted_data)} bytes to {len(decoded_data)} chars")
+                    print(f"[FORENSIC EXTRACT DEBUG] First 100 chars: {repr(decoded_data[:100])}")
+                    extracted_data = decoded_data
+                except UnicodeDecodeError as ue:
+                    print(f"[FORENSIC EXTRACT DEBUG] ❌ Failed to decode bytes as UTF-8: {ue}")
+                    # This might be binary data, not forensic JSON
+                    pass
+                    
+        except Exception as extract_error:
+            print(f"[FORENSIC EXTRACT ERROR] Primary extraction failed: {extract_error}")
+            import traceback
+            traceback.print_exc()
+            
+            # AUDIO-SPECIFIC: Handle password/decryption issues gracefully
+            if carrier_type == "audio":
+                print(f"[AUDIO DEBUG] Manager type: {type(manager)}")
+                print(f"[AUDIO DEBUG] Manager password set: {bool(getattr(manager, 'password', None))}")
+                print(f"[AUDIO DEBUG] File path: {stego_file_path}")
+                
+                error_str = str(extract_error).lower()
+                # Check for common audio extraction issues
+                if any(issue in error_str for issue in ["decrypt", "password", "utf-8", "codec", "continuation byte"]):
+                    print(f"[AUDIO DEBUG] Detected decryption/encoding issue, trying password recovery...")
+                    
+                    # Try multiple password approaches for forensic audio files
+                    recovery_passwords = [
+                        "",              # Empty password
+                        None,            # No password  
+                        "forensic",      # Default forensic password
+                        password if password else "",  # Original password or empty
+                    ]
+                    
+                    for recovery_pwd in recovery_passwords:
+                        try:
+                            print(f"[AUDIO RECOVERY] Trying password: {recovery_pwd if recovery_pwd else 'None/Empty'}")
+                            recovery_manager = get_steganography_manager(carrier_type, recovery_pwd or "")
+                            recovery_result = recovery_manager.extract_data(stego_file_path)
+                            
+                            if recovery_result and isinstance(recovery_result, tuple):
+                                recovery_data, recovery_filename = recovery_result
+                                
+                                # Try to decode and parse as forensic JSON
+                                if isinstance(recovery_data, bytes):
+                                    recovery_text = recovery_data.decode('utf-8')
+                                else:
+                                    recovery_text = recovery_data
+                                
+                                # Verify it's valid forensic JSON
+                                import json
+                                forensic_container = json.loads(recovery_text)
+                                if forensic_container.get("type") == "forensic_evidence":
+                                    print(f"[AUDIO RECOVERY] ✅ Successful recovery with password: {recovery_pwd if recovery_pwd else 'None/Empty'}")
+                                    extraction_result = recovery_result
+                                    extracted_data, original_filename = extraction_result
+                                    break
+                                    
+                        except Exception as recovery_error:
+                            print(f"[AUDIO RECOVERY] Failed with password {recovery_pwd if recovery_pwd else 'None/Empty'}: {recovery_error}")
+                            continue
+                    else:
+                        # All recovery attempts failed
+                        print(f"[AUDIO ERROR] All password recovery attempts failed")
+                        raise Exception(f"Audio forensic extraction failed - unable to decrypt with any password. Original error: {extract_error}")
+                else:
+                    # Not a password issue, re-raise original error
+                    raise extract_error
+            
+            # Try alternative extraction methods if available        # Additional validation and fallback approaches
+        if not extracted_data or (isinstance(extracted_data, (str, bytes)) and len(extracted_data) == 0):
+            print(f"[FORENSIC EXTRACT DEBUG] No data from primary extraction, trying alternative approaches...")
+            
+            # For image files, try different extraction modes
+            if carrier_type == "image":
+                try:
+                    # Try extracting with different parameters
+                    if hasattr(manager, 'extract_data_raw'):
+                        extraction_result = manager.extract_data_raw(stego_file_path, password)
+                        if extraction_result:
+                            extracted_data = extraction_result
+                            print(f"[FORENSIC EXTRACT DEBUG] Alternative extraction successful")
+                except Exception as alt_error:
+                    print(f"[FORENSIC EXTRACT DEBUG] Alternative extraction failed: {alt_error}")
+            
+            # If still no data, this might be a legitimate "no hidden data" case
+            if extracted_data is None or (isinstance(extracted_data, (str, bytes)) and len(extracted_data) == 0) or (isinstance(extracted_data, dict) and len(extracted_data) == 0):
+                raise Exception("No hidden data found in the file - this may not be a forensic steganography file or the password may be incorrect")
         
         update_job_status(operation_id, "processing", 70, "Parsing forensic metadata")
         
         # Debug: Check what we extracted
-        print(f"[FORENSIC EXTRACT DEBUG] Extracted data type: {type(extracted_data)}")
-        print(f"[FORENSIC EXTRACT DEBUG] Extracted data length: {len(extracted_data) if extracted_data else 0}")
+        print(f"[FORENSIC EXTRACT DEBUG] Final extracted data type: {type(extracted_data)}")
+        print(f"[FORENSIC EXTRACT DEBUG] Final extracted data length: {len(extracted_data) if extracted_data else 0}")
         if isinstance(extracted_data, str):
             print(f"[FORENSIC EXTRACT DEBUG] First 500 chars: {repr(extracted_data[:500])}")
             # Check if it looks like JSON
             if extracted_data.strip().startswith('{'):
-                print("[FORENSIC EXTRACT DEBUG] ✅ Looks like JSON - starts with {")
+                print("[FORENSIC EXTRACT DEBUG] ✅ String looks like JSON - starts with {")
             else:
-                print("[FORENSIC EXTRACT DEBUG] ❌ Does not look like JSON")
+                print("[FORENSIC EXTRACT DEBUG] ❌ String does not look like JSON")
+                print(f"[FORENSIC EXTRACT DEBUG] String actually starts with: {repr(extracted_data[:50])}")
         elif isinstance(extracted_data, bytes):
+            print(f"[FORENSIC EXTRACT DEBUG] Still bytes after processing - first 100 bytes: {extracted_data[:100]}")
             try:
                 decoded_preview = extracted_data.decode('utf-8', errors='replace')[:500] 
-                print(f"[FORENSIC EXTRACT DEBUG] First 500 chars (decoded): {repr(decoded_preview)}")
-                # Check if decoded looks like JSON
-                if decoded_preview.strip().startswith('{'):
-                    print("[FORENSIC EXTRACT DEBUG] ✅ Decoded looks like JSON - starts with {")
-                else:
-                    print("[FORENSIC EXTRACT DEBUG] ❌ Decoded does not look like JSON")
+                print(f"[FORENSIC EXTRACT DEBUG] Decoded preview: {repr(decoded_preview)}")
             except:
-                print(f"[FORENSIC EXTRACT DEBUG] Binary data, first 100 bytes: {extracted_data[:100]}")
+                print(f"[FORENSIC EXTRACT DEBUG] Cannot decode bytes")
         
         # Try to parse as forensic evidence
         forensic_metadata = None
@@ -3473,16 +3797,48 @@ async def process_forensic_extract_operation(
         # Handle fallback for non-forensic or failed forensic parsing
         if not forensic_parsing_success and extracted_file_data is None:
             print(f"[FORENSIC EXTRACT] Using raw extracted data as fallback")
-            extracted_file_data = extracted_data
-            if original_filename:
-                extracted_filename = original_filename
+            
+            # CRITICAL FIX: Validate that extracted_data is actual file data, not error dict
+            is_valid_file_data = False
+            
+            if extracted_data is not None:
+                # Check if it's an error dictionary (common extraction failure pattern)
+                if isinstance(extracted_data, dict):
+                    if extracted_data.get('success') is False or 'error' in extracted_data:
+                        print(f"[FORENSIC EXTRACT ERROR] ❌ Extracted data is error dict: {extracted_data}")
+                        print(f"[FORENSIC EXTRACT ERROR] This indicates the extraction method failed and returned error info instead of file data")
+                        is_valid_file_data = False
+                    else:
+                        # Dict but not error - might be valid data structure
+                        print(f"[FORENSIC EXTRACT] Dict data (not error): {list(extracted_data.keys()) if isinstance(extracted_data, dict) else 'N/A'}")
+                        is_valid_file_data = True
+                elif isinstance(extracted_data, (str, bytes)) and len(extracted_data) > 0:
+                    # String or bytes with content - likely valid
+                    is_valid_file_data = True
+                else:
+                    print(f"[FORENSIC EXTRACT] Invalid data type or empty: {type(extracted_data)}")
+                    is_valid_file_data = False
+            
+            if is_valid_file_data:
+                extracted_file_data = extracted_data
+                if original_filename:
+                    extracted_filename = original_filename
+                else:
+                    # Try to detect file type from content
+                    extracted_filename = detect_filename_from_content(extracted_data)
+                print(f"[FORENSIC EXTRACT] ✅ Using extracted data as file content: {extracted_filename}")
             else:
-                # Try to detect file type from content
-                extracted_filename = detect_filename_from_content(extracted_data)
+                print(f"[FORENSIC EXTRACT] ❌ Cannot use extracted data - invalid format or error result")
+                extracted_file_data = None
         
         # Final validation
         if extracted_file_data is None:
-            raise Exception("No valid file data could be extracted")
+            # Provide specific error based on what was extracted
+            if isinstance(extracted_data, dict) and extracted_data.get('success') is False:
+                error_msg = extracted_data.get('error', 'Unknown extraction error')
+                raise Exception(f"Extraction failed: {error_msg}. This may indicate the file does not contain forensic evidence or the wrong extraction method was used.")
+            else:
+                raise Exception("No valid file data could be extracted - the file may not contain hidden data or may require a different password.")
             
         print(f"[FORENSIC EXTRACT] Final extracted_file_data type: {type(extracted_file_data)}")
         print(f"[FORENSIC EXTRACT] Final extracted_file_data size: {len(extracted_file_data) if extracted_file_data else 0}")
@@ -3594,10 +3950,15 @@ This appears to be a standard hidden file without forensic context.
         print(f"[FORENSIC EXTRACT] Operation {operation_id} completed successfully")
         
     except Exception as e:
+        print(f"[FORENSIC EXTRACT ERROR] *** OUTER EXCEPTION HANDLER REACHED ***")
         print(f"[FORENSIC EXTRACT ERROR] Operation {operation_id} failed: {str(e)}")
+        print(f"[FORENSIC EXTRACT ERROR] Carrier type: {carrier_type}")
         import traceback
         traceback.print_exc()
         
+
+        
+        # If we get here, normal error handling
         error_message = translate_error_message(str(e), carrier_type)
         update_job_status(operation_id, "failed", error=error_message)
         
@@ -3699,20 +4060,69 @@ def _try_extraction_with_manager(manager, stego_file_path: str, password: str, m
             
             # Call extract_data with different parameter combinations
             try:
-                print(f"[SECURE EXTRACT] Calling extract_data with output_dir: {OUTPUT_DIR}")
-                result = manager.extract_data(stego_file_path, password=password, output_dir=str(OUTPUT_DIR))
+                # Enable fast mode for video steganography to avoid timeouts
+                is_video = method_type == "video"
+                print(f"[SECURE EXTRACT] Calling extract_data with output_dir: {OUTPUT_DIR}, fast_mode: {is_video}")
+                
+                if is_video:
+                    result = manager.extract_data(stego_file_path, password=password, output_dir=str(OUTPUT_DIR), fast_mode=True)
+                else:
+                    result = manager.extract_data(stego_file_path, password=password, output_dir=str(OUTPUT_DIR))
+                    
                 print(f"[SECURE EXTRACT] extract_data returned: {type(result)} - {result}")
+                
+                # CRITICAL FIX: Video steganography fallback for clean -> legacy
+                if (method_type == "video" and isinstance(result, dict) and 
+                    not result.get('success', True) and 
+                    result.get('error') == 'Frame directory not found'):
+                    
+                    print(f"[VIDEO FALLBACK] 🔄 Clean video steganography failed, trying legacy video steganography...")
+                    
+                    # Import and try the legacy video steganography
+                    try:
+                        try:
+                            from .modules.video_steganography import VideoSteganographyManager as LegacyVideoManager
+                        except ImportError:
+                            from modules.video_steganography import VideoSteganographyManager as LegacyVideoManager
+                        
+                        print(f"[VIDEO FALLBACK] Creating legacy VideoSteganographyManager")
+                        legacy_manager = LegacyVideoManager(password=password)
+                        
+                        print(f"[VIDEO FALLBACK] Calling legacy extract_data")
+                        legacy_result = legacy_manager.extract_data(stego_file_path)
+                        print(f"[VIDEO FALLBACK] Legacy result type: {type(legacy_result)}")
+                        print(f"[VIDEO FALLBACK] Legacy result: {legacy_result}")
+                        
+                        if legacy_result is not None:
+                            print(f"[VIDEO FALLBACK] ✅ SUCCESS with legacy video steganography!")
+                            result = legacy_result
+                        else:
+                            print(f"[VIDEO FALLBACK] ❌ Legacy video steganography also failed")
+                            
+                    except ImportError as e:
+                        print(f"[VIDEO FALLBACK] ❌ Could not import legacy video steganography: {e}")
+                    except Exception as e:
+                        print(f"[VIDEO FALLBACK] ❌ Legacy video steganography failed: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
             except TypeError as e:
                 print(f"[SECURE EXTRACT] TypeError with output_dir: {e}")
                 # Fallback for managers that don't accept output_dir parameter
                 try:
-                    print(f"[SECURE EXTRACT] Trying without output_dir")
-                    result = manager.extract_data(stego_file_path, password=password)
+                    print(f"[SECURE EXTRACT] Trying without output_dir, fast_mode: {is_video}")
+                    if is_video:
+                        result = manager.extract_data(stego_file_path, password=password, fast_mode=True)
+                    else:
+                        result = manager.extract_data(stego_file_path, password=password)
                     print(f"[SECURE EXTRACT] extract_data (no output_dir) returned: {type(result)} - {result}")
                 except TypeError as e2:
                     print(f"[SECURE EXTRACT] TypeError without password: {e2}")
                     # Ultimate fallback for old managers
-                    result = manager.extract_data(stego_file_path)
+                    if is_video:
+                        result = manager.extract_data(stego_file_path, fast_mode=True)
+                    else:
+                        result = manager.extract_data(stego_file_path)
                     print(f"[SECURE EXTRACT] extract_data (minimal) returned: {type(result)} - {result}")
             except Exception as e:
                 print(f"[SECURE EXTRACT] Other exception: {e}")
@@ -3766,11 +4176,31 @@ async def process_extract_operation(
             print(f"[EXTRACT DEBUG] Calling _try_extraction_with_manager for primary method")
             extraction_result = _try_extraction_with_manager(manager, stego_file_path, password, carrier_type, is_fallback=False)
             print(f"[EXTRACT DEBUG] Primary extraction result: {extraction_result is not None}")
+            
+            # CRITICAL FIX: Check for actual success, not just non-None results
+            is_actually_successful = False
             if extraction_result is not None:
+                if isinstance(extraction_result, dict):
+                    # For dict results, check if success is True or if there's valid extracted_data
+                    if extraction_result.get('success', True):  # Default True for backward compatibility
+                        is_actually_successful = True
+                        print(f"[EXTRACT DEBUG] Dict result marked as successful")
+                    elif extraction_result.get('extracted_data'):
+                        is_actually_successful = True
+                        print(f"[EXTRACT DEBUG] Dict result has extracted_data, treating as successful")
+                    else:
+                        print(f"[EXTRACT DEBUG] Dict result marked as failed or no data: {extraction_result}")
+                else:
+                    # For tuple results or other formats, assume success if not None
+                    is_actually_successful = True
+                    print(f"[EXTRACT DEBUG] Non-dict result, treating as successful: {type(extraction_result)}")
+            
+            if is_actually_successful:
                 successful_type = carrier_type
                 print(f"[EXTRACT DEBUG] ✅ PRIMARY SUCCESS with {carrier_type}")
             else:
                 print(f"[EXTRACT DEBUG] ❌ PRIMARY FAILED with {carrier_type}")
+                extraction_result = None  # Reset to None so fallbacks can be tried
         
         # If primary method failed and we have fallback types, try them
         if extraction_result is None and fallback_types:
@@ -3779,8 +4209,24 @@ async def process_extract_operation(
                 fallback_manager = get_steganography_manager(fallback_type, password)
                 
                 if fallback_manager:
-                    extraction_result = _try_extraction_with_manager(fallback_manager, stego_file_path, password, fallback_type, is_fallback=True)
-                    if extraction_result is not None:
+                    fallback_result = _try_extraction_with_manager(fallback_manager, stego_file_path, password, fallback_type, is_fallback=True)
+                    
+                    # Check for actual success in fallback result
+                    is_fallback_successful = False
+                    if fallback_result is not None:
+                        if isinstance(fallback_result, dict):
+                            if fallback_result.get('success', True):  # Default True for backward compatibility
+                                is_fallback_successful = True
+                                print(f"[EXTRACT] Fallback dict result marked as successful")
+                            elif fallback_result.get('extracted_data'):
+                                is_fallback_successful = True
+                                print(f"[EXTRACT] Fallback dict result has extracted_data")
+                        else:
+                            is_fallback_successful = True
+                            print(f"[EXTRACT] Fallback non-dict result: {type(fallback_result)}")
+                    
+                    if is_fallback_successful:
+                        extraction_result = fallback_result
                         successful_type = fallback_type
                         print(f"[EXTRACT] ✅ SUCCESS with fallback method: {fallback_type}")
                         break
@@ -3792,7 +4238,7 @@ async def process_extract_operation(
         print(f"[DEBUG EXTRACT] Successful method: {successful_type}")
         
         # Log to file for debugging
-        with open("debug_extraction.log", "a") as f:
+        with open("debug_extraction.log", "a", encoding="utf-8") as f:
             f.write(f"\n=== DEBUG EXTRACTION {operation_id} ===\n")
             f.write(f"File: {stego_file_path}\n")
             f.write(f"Primary type: {carrier_type}\n")
@@ -3803,24 +4249,67 @@ async def process_extract_operation(
         if extraction_result is None:
             raise Exception("Failed to extract data. Please check your password or ensure the file contains hidden data.")
         
-        update_job_status(operation_id, "processing", 70, "Processing extraction results")
+        # CRITICAL DEBUG: Check if update_job_status is causing issues
+        with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+            debug_f.write(f"[{datetime.now()}] 🚀 ABOUT TO CALL UPDATE_JOB_STATUS 🚀\n")
+        
+        try:
+            update_job_status(operation_id, "processing", 70, "Processing extraction results")
+            with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                debug_f.write(f"[{datetime.now()}] ✅ UPDATE_JOB_STATUS SUCCEEDED ✅\n")
+        except Exception as update_error:
+            with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                debug_f.write(f"[{datetime.now()}] ❌ UPDATE_JOB_STATUS ERROR: {update_error} ❌\n")
+        
+        # CRITICAL DEBUG: Check if we reach this point at all
+        with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+            debug_f.write(f"[{datetime.now()}] 🎯 REACHED POST-UPDATE_JOB_STATUS 🎯\n")
+        
+        # DEBUG: Entering conditional processing section
+        try:
+            with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                debug_f.write(f"[{datetime.now()}] ⭐ ENTERING CONDITIONAL PROCESSING SECTION ⭐\n")
+            print(f"⭐⭐⭐ ENTERING CONDITIONAL PROCESSING SECTION ⭐⭐⭐")
+        except Exception as debug_error:
+            with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                debug_f.write(f"[{datetime.now()}] ERROR IN DEBUG SECTION: {debug_error}\n")
+        
+        # CRITICAL DEBUG: Check what type we have before conditional processing
+        print(f"🚨🚨🚨 CONDITIONAL CHECK: extraction_result type = {type(extraction_result)} 🚨🚨🚨")
+        print(f"🚨🚨🚨 isinstance(extraction_result, dict) = {isinstance(extraction_result, dict)} 🚨🚨🚨")
+        print(f"🚨🚨🚨 isinstance(extraction_result, tuple) = {isinstance(extraction_result, tuple)} 🚨🚨🚨")
+        
+        # Log conditional check to file too
+        with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+            debug_f.write(f"[{datetime.now()}] 🚨 CONDITIONAL TYPE CHECK:\n")
+            debug_f.write(f"  Type: {type(extraction_result)}\n")
+            debug_f.write(f"  isinstance(dict): {isinstance(extraction_result, dict)}\n")
+            debug_f.write(f"  isinstance(tuple): {isinstance(extraction_result, tuple)}\n")
         
         # Handle new multi-layer response format
         if isinstance(extraction_result, dict):
+            print("DICT_BRANCH_MARKER - REACHED DICT PROCESSING")
+            with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                debug_f.write(f"[{datetime.now()}] 🔥 DICT_BRANCH_MARKER - REACHED DICT PROCESSING 🔥\n")
             # Multi-layer steganography response
             if extraction_result.get('multi_layer_extraction', False):
                 print(f"[MULTI-LAYER] Detected multi-layer extraction: {extraction_result.get('total_layers_extracted', 0)} layers")
                 
-                # The zip file is already created by the multi-layer module
-                zip_path = extraction_result.get('zip_file')
-                if zip_path and os.path.exists(zip_path):
-                    zip_filename = os.path.basename(zip_path)
-                    
-                    # Move zip file to output directory if it's not already there
+                # The zip data is returned as bytes from the multi-layer module
+                zip_data = extraction_result.get('zip_file')
+                if zip_data and isinstance(zip_data, bytes) and len(zip_data) > 0:
+                    # Generate unique ZIP filename
+                    zip_filename = f"extracted_layers_{operation_id[:8]}.zip"
                     final_zip_path = OUTPUT_DIR / zip_filename
-                    if zip_path != str(final_zip_path):
-                        import shutil
-                        shutil.move(zip_path, final_zip_path)
+                    
+                    # Write the ZIP bytes to file
+                    try:
+                        with open(final_zip_path, 'wb') as f:
+                            f.write(zip_data)
+                        print(f"[MULTI-LAYER] Successfully wrote ZIP file: {final_zip_path} ({len(zip_data)} bytes)")
+                    except Exception as write_error:
+                        print(f"[MULTI-LAYER] Failed to write ZIP file: {write_error}")
+                        raise Exception(f"Multi-layer extraction failed - could not write zip file: {write_error}")
                     
                     output_files = [str(final_zip_path)]
                     
@@ -3832,15 +4321,15 @@ async def process_extract_operation(
                         "output_file": str(final_zip_path),
                         "filename": zip_filename,
                         "extracted_filename": zip_filename,  # Frontend expects this field
-                        "file_size": os.path.getsize(final_zip_path),
+                        "file_size": len(zip_data),
                         "processing_time": processing_time,
                         "content_type": "application/zip",  # Frontend expects this field
                         "data_type": "zip",
                         "preview": f"Multi-layer ZIP containing {extraction_result.get('total_layers_extracted', 0)} layers",
-                        "text_content": extraction_result.get('extracted_data', ''),  # Frontend expects this field
+                        "text_content": f"Multi-layer extraction completed: {extraction_result.get('total_layers_extracted', 0)} layers",  # Frontend expects this field
                         "original_filename": zip_filename,
                         "download_url": f"/api/operations/{operation_id}/download",  # Frontend expects this field
-                        "extracted_data": extraction_result.get('extracted_data', ''),  # Frontend expects this field
+                        "extracted_data": f"ZIP archive with {extraction_result.get('total_layers_extracted', 0)} extracted files",  # Frontend expects this field
                         # Multi-layer specific fields
                         "is_multi_layer": True,
                         "multi_layer_extraction": True,
@@ -3858,9 +4347,861 @@ async def process_extract_operation(
                     
                     return
                 else:
-                    raise Exception("Multi-layer extraction failed - zip file not created")
+                    print(f"[MULTI-LAYER] No valid ZIP data found. zip_data type: {type(zip_data)}, length: {len(zip_data) if zip_data else 0}")
+                    raise Exception("Multi-layer extraction failed - zip data not created or invalid")
+            else:
+                # Standard dict format (non-multi-layer)
+                print("DICT_PROCESSING_START_MARKER")
+                try:
+                    with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                        debug_f.write(f"[{datetime.now()}] DICT_PROCESSING_START_MARKER\n")
+                except:
+                    pass
+                
+                # Process as regular dict-based extraction
+                extracted_data = extraction_result.get('extracted_data', '')
+                original_filename = extraction_result.get('filename', 'extracted_data.bin')  # Default filename if missing
+                
+                print(f"[DICT DEBUG] extracted_data type: {type(extracted_data)}")
+                print(f"[DICT DEBUG] original_filename: {original_filename}")
+                print(f"[DICT DEBUG] extracted_data size: {len(extracted_data) if hasattr(extracted_data, '__len__') else 'N/A'}")
+                if isinstance(extracted_data, bytes) and len(extracted_data) > 0:
+                    print(f"[DICT DEBUG] extracted_data preview: {extracted_data[:100]}")
+                
+                # Write debug info to file as well
+                with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                    debug_f.write(f"[{datetime.now()}] 📊 EXTRACTION DATA:\n")
+                    debug_f.write(f"  Type: {type(extracted_data)}\n")
+                    debug_f.write(f"  Filename: {original_filename}\n")
+                    debug_f.write(f"  Size: {len(extracted_data) if hasattr(extracted_data, '__len__') else 'N/A'}\n")
+                    debug_f.write(f"  Is bytes: {isinstance(extracted_data, bytes)}\n")
+                
+                # Handle bytes data from extraction_result
+                print("BYTES_CHECK_MARKER")
+                print(f"[DICT DEBUG] 🔍 Checking if extracted_data is bytes: {isinstance(extracted_data, bytes)}")
+                if isinstance(extracted_data, bytes):
+                    # Check if it's a layered container JSON
+                    try:
+                        print(f"[DICT DEBUG] Attempting to decode bytes as UTF-8...")
+                        decoded_data = extracted_data.decode('utf-8')
+                        print(f"[DICT DEBUG] Successfully decoded bytes to UTF-8, length: {len(decoded_data)}")
+                        print(f"[DICT DEBUG] Data preview: {decoded_data[:200]}...")
+                        
+                        import json
+                        print(f"[DICT DEBUG] Attempting to parse as JSON...")
+                        print(f"[DICT DEBUG] JSON data length: {len(decoded_data)} characters")
+                        print(f"[DICT DEBUG] JSON data ends with: '{decoded_data[-50:]}'")
+                        
+                        parsed_data = json.loads(decoded_data)
+                        print(f"[DICT DEBUG] Successfully parsed JSON, type field: {parsed_data.get('type', 'MISSING')}")
+                        
+                        if (isinstance(parsed_data, dict) and 
+                            parsed_data.get('type') == 'layered_container' and
+                            'layers' in parsed_data):
+                            
+                            print(f"[DICT] 🎯 LAYERED CONTAINER DETECTED! 🎯 {len(parsed_data['layers'])} layers")
+                            print(f"[DICT] Overriding original filename '{original_filename}' with container contents")
+                            
+                            # DEBUG: Write to debug log about layered container detection in dict processing
+                            with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                                debug_f.write(f"[{datetime.now()}] 🎯 DICT LAYERED CONTAINER DETECTED\n")
+                                debug_f.write(f"  Original filename: {original_filename}\n")
+                                debug_f.write(f"  Container layers: {len(parsed_data['layers'])}\n")
+                                for i, layer in enumerate(parsed_data['layers']):
+                                    if isinstance(layer, dict):
+                                        debug_f.write(f"    Layer {i}: {layer.get('filename', 'unknown')}\n")
+                            
+                            # Process layered container
+                            print(f"[DICT] Calling extract_layered_data_container...")
+                            layers = extract_layered_data_container(extracted_data)
+                            print(f"[DICT] extract_layered_data_container returned: {len(layers) if layers else 0} layers")
+                            
+                            if layers and len(layers) == 1:
+                                # Single layer - save directly
+                                layer_data, layer_filename = layers[0]
+                                safe_filename = sanitize_filename(layer_filename)
+                                output_path = OUTPUT_DIR / safe_filename
+                                
+                                if isinstance(layer_data, str):
+                                    with open(output_path, 'w', encoding='utf-8') as f:
+                                        f.write(layer_data)
+                                    text_content = layer_data
+                                    content_type = "text/plain"
+                                elif isinstance(layer_data, bytes):
+                                    with open(output_path, 'wb') as f:
+                                        f.write(layer_data)
+                                    
+                                    if _is_likely_text_content(layer_data):
+                                        try:
+                                            text_content = layer_data.decode('utf-8')
+                                            content_type = "text/plain"
+                                        except UnicodeDecodeError:
+                                            text_content = f"Binary file: {layer_filename} ({len(layer_data)} bytes)"
+                                            content_type = "application/octet-stream"
+                                    else:
+                                        text_content = f"Binary file: {layer_filename} ({len(layer_data)} bytes)"
+                                        content_type = "application/octet-stream"
+                                
+                                processing_time = time.time() - start_time
+                                
+                                result = {
+                                    "success": True,
+                                    "output_file": str(output_path),
+                                    "filename": layer_filename,
+                                    "extracted_filename": layer_filename,
+                                    "file_size": os.path.getsize(output_path),
+                                    "processing_time": processing_time,
+                                    "content_type": content_type,
+                                    "data_type": "text" if "text" in content_type else "binary",
+                                    "preview": text_content[:200] if len(str(text_content)) > 200 else text_content,
+                                    "text_content": text_content,
+                                    "original_filename": layer_filename,
+                                    "download_url": f"/api/operations/{operation_id}/download"
+                                }
+                                
+                                update_job_status(
+                                    operation_id,
+                                    "completed",
+                                    100,
+                                    f"Single layer extraction completed: {layer_filename}",
+                                    result=result
+                                )
+                                
+                                # Cleanup input file
+                                if os.path.exists(stego_file_path):
+                                    os.remove(stego_file_path)
+                                
+                                return
+                                
+                            elif layers and len(layers) > 1:
+                                # Multiple layers - create ZIP
+                                import zipfile
+                                zip_filename = f"extracted_layers_{operation_id[:8]}.zip"
+                                zip_path = OUTPUT_DIR / zip_filename
+                                
+                                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                                    for i, (layer_data, layer_filename) in enumerate(layers):
+                                        if layer_data is not None and layer_filename:
+                                            name_parts = os.path.splitext(layer_filename)
+                                            if name_parts[1]:
+                                                unique_filename = f"layer_{i+1}_{name_parts[0]}{name_parts[1]}"
+                                            else:
+                                                unique_filename = f"layer_{i+1}_{layer_filename}"
+                                            
+                                            if isinstance(layer_data, str):
+                                                zipf.writestr(unique_filename, layer_data.encode('utf-8'))
+                                            elif isinstance(layer_data, bytes):
+                                                zipf.writestr(unique_filename, layer_data)
+                                
+                                processing_time = time.time() - start_time
+                                
+                                result = {
+                                    "success": True,
+                                    "output_file": str(zip_path),
+                                    "filename": zip_filename,
+                                    "extracted_filename": zip_filename,
+                                    "file_size": os.path.getsize(zip_path),
+                                    "processing_time": processing_time,
+                                    "content_type": "application/zip",
+                                    "data_type": "zip",
+                                    "preview": f"Multi-layer ZIP containing {len(layers)} layers",
+                                    "text_content": f"Multi-layer extraction completed: {len(layers)} layers extracted",
+                                    "original_filename": zip_filename,
+                                    "download_url": f"/api/operations/{operation_id}/download",
+                                    "is_multi_layer": True,
+                                    "total_layers_extracted": len(layers),
+                                    "layer_details": [{"filename": fn, "size": len(data) if data else 0} for data, fn in layers]
+                                }
+                                
+                                update_job_status(
+                                    operation_id,
+                                    "completed",
+                                    100,
+                                    f"Multi-layer extraction completed: {len(layers)} layers extracted",
+                                    result=result
+                                )
+                                
+                                # Cleanup input file
+                                if os.path.exists(stego_file_path):
+                                    os.remove(stego_file_path)
+                                
+                                return
+                    
+                    except UnicodeDecodeError as e:
+                        print(f"[DICT DEBUG] UnicodeDecodeError: {e} - not a layered container")
+                        pass
+                    except json.JSONDecodeError as e:
+                        print(f"[DICT DEBUG] ❌ JSONDecodeError: {e}")
+                        print(f"[DICT DEBUG] Error position: {e.pos} of {len(decoded_data)} total characters")
+                        
+                        # 🚨 CRITICAL DEBUGGING: Check for truncation indicators
+                        if "Unterminated string" in str(e):
+                            print(f"[TRUNCATION DEBUG] 🚨 JSON STRING TRUNCATION DETECTED!")
+                            print(f"[TRUNCATION DEBUG] Raw bytes size: {len(extracted_data)} bytes")
+                            print(f"[TRUNCATION DEBUG] Decoded string size: {len(decoded_data)} characters")
+                            
+                            # Check if raw bytes contains complete JSON
+                            raw_str = str(extracted_data)
+                            print(f"[TRUNCATION DEBUG] Raw bytes as string length: {len(raw_str)}")
+                            
+                            # Look for JSON end markers in raw data
+                            if b'}}]}' in extracted_data:
+                                print(f"[TRUNCATION DEBUG] ✅ Found JSON end markers in raw bytes")
+                                end_pos = extracted_data.rfind(b'}}]}')
+                                print(f"[TRUNCATION DEBUG] JSON end position in bytes: {end_pos}")
+                            else:
+                                print(f"[TRUNCATION DEBUG] ❌ No JSON end markers found in raw bytes")
+                            
+                            # Check for embedded nulls
+                            null_positions = [i for i, b in enumerate(extracted_data) if b == 0]
+                            if null_positions:
+                                print(f"[TRUNCATION DEBUG] 🔍 Found null bytes at positions: {null_positions[:10]}...")
+                                # Try to extract data up to first null
+                                if null_positions[0] > 1000:  # If null is far enough
+                                    try:
+                                        clean_data = extracted_data[:null_positions[0]]
+                                        clean_str = clean_data.decode('utf-8')
+                                        json.loads(clean_str)
+                                        print(f"[TRUNCATION DEBUG] ✅ Clean data up to first null is valid JSON!")
+                                        # Use the clean data - retry with clean data
+                                        try:
+                                            parsed_data = json.loads(clean_str)
+                                            print(f"[TRUNCATION DEBUG] ✅ Successfully parsed clean JSON!")
+                                            # Process the layered container...
+                                        except:
+                                            print(f"[TRUNCATION DEBUG] ❌ Still failed to parse clean data")
+                                    except:
+                                        print(f"[TRUNCATION DEBUG] ❌ Clean data still not valid JSON")
+                        
+                        if e.pos < len(decoded_data):
+                            error_char = decoded_data[e.pos]
+                            print(f"[DICT DEBUG] Character at error position: '{error_char}' (ord: {ord(error_char)})")
+                            print(f"[DICT DEBUG] Context around error: '{decoded_data[max(0, e.pos-20):e.pos+20]}'")
+                            # Check for null bytes or control characters
+                            null_count = decoded_data[:e.pos].count('\x00')
+                            print(f"[DICT DEBUG] Null bytes found before error position: {null_count}")
+                            # Try to find where the actual JSON ends
+                            for i in range(e.pos, min(e.pos + 100, len(decoded_data))):
+                                char = decoded_data[i]
+                                if char == '}' and i > e.pos + 10:  # Potential end of JSON
+                                    print(f"[DICT DEBUG] Potential JSON end found at position {i}: '{decoded_data[i-5:i+5]}'")
+                                    break
+                        pass
+                    except Exception as e:
+                        print(f"[DICT DEBUG] Exception in layered container processing: {e}")
+                        import traceback
+                        print(f"[DICT DEBUG] Traceback: {traceback.format_exc()}")
+                        pass
+                
+                # Fallback: regular dict processing (no layered container)
+                print(f"[DICT DEBUG] 📁 Reached fallback processing - layered container detection completed")
+                
+                # 🎯 FINAL LAYERED CONTAINER CHECK - Add detection right here in fallback processing
+                if isinstance(extracted_data, bytes):
+                    try:
+                        print(f"[FALLBACK] 🔍 Final check for layered container in {len(extracted_data)} bytes")
+                        decoded_data = extracted_data.decode('utf-8')
+                        
+                        import json
+                        parsed_data = json.loads(decoded_data)
+                        
+                        if (isinstance(parsed_data, dict) and 
+                            parsed_data.get('type') == 'layered_container' and
+                            'layers' in parsed_data and len(parsed_data['layers']) > 0):
+                            
+                            print(f"[FALLBACK] ✅ LAYERED CONTAINER DETECTED IN FALLBACK! Layers: {len(parsed_data['layers'])}")
+                            
+                            # Extract the first layer's filename as the original filename
+                            first_layer = parsed_data['layers'][0]
+                            if isinstance(first_layer, dict) and 'filename' in first_layer:
+                                original_filename = first_layer['filename']
+                                print(f"[FALLBACK] 🎯 Overriding filename from '{extraction_result.get('filename', 'unknown')}' to '{original_filename}'")
+                                
+                                # Extract the first layer's content as the actual data
+                                if 'content' in first_layer:
+                                    import base64
+                                    extracted_data = base64.b64decode(first_layer['content'])
+                                    print(f"[FALLBACK] 📁 Extracted layer content: {len(extracted_data)} bytes")
+                    except Exception as e:
+                        print(f"[FALLBACK] ❌ Layered container check failed: {e}")
+                        pass
+                
+                if not original_filename:
+                    print(f"[DICT DEBUG] 📁 No original_filename, detecting from content...")
+                    original_filename = detect_filename_from_content(extracted_data)
+                else:
+                    print(f"[DICT DEBUG] 📁 Using provided filename: {original_filename}")
+                    
+                safe_filename = sanitize_filename(original_filename)
+                output_path = OUTPUT_DIR / safe_filename
+                
+                if isinstance(extracted_data, str):
+                    with open(output_path, 'w', encoding='utf-8') as f:
+                        f.write(extracted_data)
+                    text_content = extracted_data
+                    content_type = "text/plain"
+                elif isinstance(extracted_data, bytes):
+                    # CRITICAL FIX: Check if this is copyright data from video extraction
+                    is_copyright_data = False
+                    clean_copyright_text = None
+                    
+                    if _is_likely_text_content(extracted_data):
+                        try:
+                            decoded_text = extracted_data.decode('utf-8')
+                            
+                            # Check if this looks like copyright JSON data
+                            import json
+                            try:
+                                parsed_json = json.loads(decoded_text)
+                                
+                                # ENHANCED COPYRIGHT FIX: Handle both direct copyright data and forensic containers with copyright data
+                                if isinstance(parsed_json, dict):
+                                    copyright_json = None
+                                    
+                                    # Check for direct copyright-specific fields
+                                    if any(key in parsed_json for key in ['author_name', 'copyright_alias', 'timestamp', 'copyright']):
+                                        print(f"[COPYRIGHT FIX] 🎯 Detected direct copyright JSON data from video extraction")
+                                        copyright_json = parsed_json
+                                    
+                                    # CRITICAL: Also check if this is a forensic container that contains copyright data
+                                    elif (parsed_json.get("type") == "forensic_evidence" and 
+                                          isinstance(parsed_json.get("metadata"), dict)):
+                                        
+                                        metadata = parsed_json["metadata"]
+                                        print(f"[COPYRIGHT FIX] 🔍 Checking forensic container for copyright data...")
+                                        
+                                        # Check if the forensic metadata contains copyright fields
+                                        if any(key in metadata for key in ['author_name', 'copyright_alias', 'copyright']):
+                                            print(f"[COPYRIGHT FIX] 🎯 Found copyright data inside forensic container!")
+                                            copyright_json = metadata
+                                            
+                                            # Also check for timestamp in the main container
+                                            if 'timestamp' in parsed_json and 'timestamp' not in copyright_json:
+                                                copyright_json['timestamp'] = parsed_json['timestamp']
+                                    
+                                    # CRITICAL: Also check if this is a layered container with copyright data
+                                    elif (parsed_json.get("type") == "layered_container" and 
+                                          isinstance(parsed_json.get("layers"), list) and 
+                                          len(parsed_json["layers"]) > 0):
+                                        
+                                        print(f"[COPYRIGHT FIX] 🔍 Checking layered container for copyright data...")
+                                        
+                                        # Check each layer for copyright data
+                                        for layer in parsed_json["layers"]:
+                                            if isinstance(layer, dict) and layer.get("type") == "text" and "content" in layer:
+                                                try:
+                                                    # Decode the base64 content
+                                                    import base64
+                                                    layer_content = base64.b64decode(layer["content"]).decode('utf-8')
+                                                    layer_json = json.loads(layer_content)
+                                                    
+                                                    # Check if this layer contains copyright data
+                                                    if (isinstance(layer_json, dict) and 
+                                                        any(key in layer_json for key in ['author_name', 'copyright_alias', 'copyright'])):
+                                                        print(f"[COPYRIGHT FIX] 🎯 Found copyright data in layer: {layer.get('filename', 'unknown')}")
+                                                        copyright_json = layer_json
+                                                        break
+                                                        
+                                                except (base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError) as e:
+                                                    print(f"[COPYRIGHT FIX] ⚠️ Could not parse layer content: {e}")
+                                                    continue
+                                    
+                                    # If we found copyright data, clean it for display
+                                    if copyright_json:
+                                        is_copyright_data = True
+                                        
+                                        # Remove any non-copyright fields like "file_data", "case_id", etc.
+                                        clean_copyright_json = {}
+                                        for key in ['author_name', 'copyright_alias', 'timestamp', 'copyright']:
+                                            if key in copyright_json:
+                                                clean_copyright_json[key] = copyright_json[key]
+                                        
+                                        # Add embedder information if available
+                                        embedder_info = {}
+                                        for key in ['embedder_email', 'embedder_username', 'embedder_account_created']:
+                                            if key in copyright_json:
+                                                embedder_info[key] = copyright_json[key]
+                                        
+                                        if embedder_info:
+                                            clean_copyright_json.update(embedder_info)
+                                        
+                                        # Create clean copyright text content for display and download
+                                        clean_copyright_text = json.dumps(clean_copyright_json, indent=2, ensure_ascii=False)
+                                        
+                                        print(f"[COPYRIGHT FIX] ✅ Cleaned copyright data, removed forensic/file_data fields")
+                                        print(f"[COPYRIGHT FIX] 📋 Clean fields: {list(clean_copyright_json.keys())}")
+                                        
+                                        # Ensure the filename is .txt for copyright data
+                                        if not original_filename.endswith('.txt'):
+                                            print(f"[COPYRIGHT FIX] 🔧 Changing filename from '{original_filename}' to text file")
+                                            original_filename = f"copyright_info_{operation_id[:8]}.txt"
+                                            safe_filename = sanitize_filename(original_filename)
+                                            output_path = OUTPUT_DIR / safe_filename
+                                    
+                            except (json.JSONDecodeError, TypeError):
+                                pass  # Not JSON data, continue with normal processing
+                            
+                        except UnicodeDecodeError:
+                            pass  # Not text data, continue with normal processing
+                    
+                    if is_copyright_data and clean_copyright_text:
+                        # Save only the clean copyright text, not the raw binary data
+                        print(f"[COPYRIGHT FIX] 💾 Saving clean copyright text ({len(clean_copyright_text)} chars) instead of raw binary ({len(extracted_data)} bytes)")
+                        with open(output_path, 'w', encoding='utf-8') as f:
+                            f.write(clean_copyright_text)
+                        text_content = clean_copyright_text
+                        content_type = "text/plain"
+                    else:
+                        # Normal binary data processing
+                        with open(output_path, 'wb') as f:
+                            f.write(extracted_data)
+                        
+                        if _is_likely_text_content(extracted_data):
+                            try:
+                                text_content = extracted_data.decode('utf-8')
+                                content_type = "text/plain"
+                            except UnicodeDecodeError:
+                                text_content = f"Binary file: {original_filename} ({len(extracted_data)} bytes)"
+                                content_type = "application/octet-stream"
+                        else:
+                            text_content = f"Binary file: {original_filename} ({len(extracted_data)} bytes)"
+                            content_type = "application/octet-stream"
+                else:
+                    str_data = str(extracted_data)
+                    with open(output_path, 'w', encoding='utf-8') as f:
+                        f.write(str_data)
+                    text_content = str_data
+                    content_type = "text/plain"
+                
+                processing_time = time.time() - start_time
+                
+                result = {
+                    "success": True,
+                    "output_file": str(output_path),
+                    "filename": original_filename,
+                    "extracted_filename": original_filename,
+                    "file_size": os.path.getsize(output_path),
+                    "processing_time": processing_time,
+                    "content_type": content_type,
+                    "data_type": "text" if "text" in content_type else "binary",
+                    "preview": text_content[:200] if len(str(text_content)) > 200 else text_content,
+                    "text_content": text_content,
+                    "original_filename": original_filename,
+                    "download_url": f"/api/operations/{operation_id}/download"
+                }
+                
+                update_job_status(
+                    operation_id,
+                    "completed",
+                    100,
+                    "Dict extraction completed successfully",
+                    result=result
+                )
+                
+                # Cleanup input file
+                if os.path.exists(stego_file_path):
+                    os.remove(stego_file_path)
+                
+                return
+        
+        # Handle tuple return (data, filename) from video steganography FIRST
+        elif isinstance(extraction_result, tuple):
+            print(f"🔥🔥🔥 TUPLE PROCESSING STARTED 🔥🔥🔥")
+            extracted_data, original_filename = extraction_result
+            print(f"[DEBUG EXTRACT] Tuple unpacked - data type: {type(extracted_data)}, filename: {repr(original_filename)}")
+            print(f"🔥🔥🔥 TUPLE DATA SIZE: {len(extracted_data) if hasattr(extracted_data, '__len__') else 'NO LENGTH'} 🔥🔥🔥")
             
-            elif extraction_result.get('security_mode') == 'single_file_only':
+            # DEBUGGING: Write to debug file about tuple processing 
+            with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                debug_f.write(f"[{datetime.now()}] TUPLE PROCESSING START\n")
+                debug_f.write(f"  Data type: {type(extracted_data)}\n")
+                debug_f.write(f"  Filename: {original_filename}\n")
+                debug_f.write(f"  Data size: {len(extracted_data) if hasattr(extracted_data, '__len__') else 'N/A'}\n")
+                debug_f.write(f"  Is bytes?: {isinstance(extracted_data, bytes)}\n")
+                if isinstance(extracted_data, bytes):
+                    debug_f.write(f"  Data preview: {extracted_data[:100]}\n")
+            
+            # CRITICAL: Check if extracted_data is a layered container JSON
+            is_layered_container = False
+            if isinstance(extracted_data, bytes):
+                # DEBUGGING: Write to debug file
+                with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                    debug_f.write(f"[{datetime.now()}] CHECKING BYTES DATA\n")
+                try:
+                    # Try to decode as UTF-8 and parse as JSON
+                    decoded_data = extracted_data.decode('utf-8')
+                    
+                    # DEBUGGING: Write to debug file
+                    with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                        debug_f.write(f"  Decoded UTF-8 successfully, length: {len(decoded_data)}\n")
+                    
+                    import json
+                    parsed_data = json.loads(decoded_data)
+                    
+                    # DEBUGGING: Write to debug file
+                    with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                        debug_f.write(f"  JSON parsed successfully\n")
+                        debug_f.write(f"  Type field: {parsed_data.get('type', 'MISSING')}\n")
+                        debug_f.write(f"  Has layers: {'layers' in parsed_data}\n")
+                    
+                    # Check if it's a layered container
+                    if (isinstance(parsed_data, dict) and 
+                        parsed_data.get('type') == 'layered_container' and
+                        'layers' in parsed_data):
+                        
+                        print(f"[DEBUG EXTRACT] Detected layered container with {len(parsed_data['layers'])} layers")
+                        
+                        # DEBUGGING: Write to debug file
+                        with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                            debug_f.write(f"  ✅ LAYERED CONTAINER DETECTED: {len(parsed_data['layers'])} layers\n")
+                        
+                        is_layered_container = True
+                        
+                        # Process as multi-layer extraction
+                        try:
+                            print(f"[DEBUG EXTRACT] Calling extract_layered_data_container with {len(extracted_data)} bytes")
+                            
+                            # DEBUGGING: Write to debug file
+                            with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                                debug_f.write(f"[{datetime.now()}] Calling extract_layered_data_container\n")
+                                debug_f.write(f"  Data size: {len(extracted_data)} bytes\n")
+                                debug_f.write(f"  Data preview: {extracted_data[:100]}\n")
+                            
+                            layers = extract_layered_data_container(extracted_data)  # Function handles bytes internally
+                            
+                            # DEBUGGING: Write result to debug file
+                            with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                                debug_f.write(f"  Result: {len(layers) if layers else 0} layers\n")
+                            
+                            print(f"[DEBUG EXTRACT] Successfully extracted {len(layers) if layers else 0} layers")
+                            
+                            # DEBUG: Log each layer details
+                            if layers:
+                                for i, (layer_data, layer_filename) in enumerate(layers):
+                                    data_size = len(layer_data) if layer_data else 0
+                                    print(f"[DEBUG EXTRACT] Layer {i+1}: '{layer_filename}' ({data_size} bytes)")
+                            else:
+                                print(f"[DEBUG EXTRACT] No layers extracted from container")
+                            
+                            if layers and len(layers) > 1:
+                                # TRUE MULTI-LAYER: Create ZIP file with all layers
+                                import zipfile
+                                import tempfile
+                                
+                                print(f"[DEBUG EXTRACT] Creating ZIP for {len(layers)} layers (multi-layer)")
+                                
+                                # Generate unique ZIP filename
+                                zip_filename = f"extracted_layers_{operation_id[:8]}.zip"
+                                zip_path = OUTPUT_DIR / zip_filename
+                                
+                                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                                    for i, (layer_data, layer_filename) in enumerate(layers):
+                                        if layer_data is not None and layer_filename:
+                                            # Create unique filename to avoid duplicates
+                                            name_parts = os.path.splitext(layer_filename)
+                                            if name_parts[1]:  # Has extension
+                                                unique_filename = f"layer_{i+1}_{name_parts[0]}{name_parts[1]}"
+                                            else:  # No extension
+                                                unique_filename = f"layer_{i+1}_{layer_filename}"
+                                            
+                                            # Save layer data to ZIP with unique filename
+                                            if isinstance(layer_data, str):
+                                                zipf.writestr(unique_filename, layer_data.encode('utf-8'))
+                                            elif isinstance(layer_data, bytes):
+                                                zipf.writestr(unique_filename, layer_data)
+                                
+                                # Create multi-layer result
+                                processing_time = time.time() - start_time
+                                
+                                result = {
+                                    "output_file": str(zip_path),
+                                    "filename": zip_filename,
+                                    "extracted_filename": zip_filename,
+                                    "file_size": os.path.getsize(zip_path),
+                                    "processing_time": processing_time,
+                                    "content_type": "application/zip",
+                                    "data_type": "zip", 
+                                    "preview": f"Multi-layer ZIP containing {len(layers)} layers",
+                                    "text_content": f"Multi-layer extraction completed: {len(layers)} layers extracted",
+                                    "original_filename": zip_filename,
+                                    "download_url": f"/api/operations/{operation_id}/download",
+                                    # Multi-layer specific fields
+                                    "is_multi_layer": True,
+                                    "multi_layer_extraction": True,
+                                    "total_layers_extracted": len(layers),
+                                    "layer_details": [{"filename": fn, "size": len(data) if data else 0} for data, fn in layers]
+                                }
+                                
+                                update_job_status(
+                                    operation_id,
+                                    "completed",
+                                    100,
+                                    f"Multi-layer extraction completed: {len(layers)} layers extracted",
+                                    result=result
+                                )
+                                
+                                # Cleanup input file
+                                if os.path.exists(stego_file_path):
+                                    os.remove(stego_file_path)
+                                
+                                return
+                                
+                            elif layers and len(layers) == 1:
+                                # SINGLE LAYER: Extract the single file directly without ZIP
+                                print(f"[DEBUG EXTRACT] Single layer detected - returning single file (no ZIP)")
+                                layer_data, layer_filename = layers[0]
+                                
+                                if layer_data is not None and layer_filename:
+                                    # Save single layer directly
+                                    safe_filename = sanitize_filename(layer_filename)
+                                    single_output_path = OUTPUT_DIR / safe_filename
+                                    
+                                    if isinstance(layer_data, str):
+                                        with open(single_output_path, 'w', encoding='utf-8') as f:
+                                            f.write(layer_data)
+                                        text_content = layer_data
+                                        preview = layer_data[:200]
+                                        data_type = "text"
+                                        content_type = "text/plain"
+                                    elif isinstance(layer_data, bytes):
+                                        with open(single_output_path, 'wb') as f:
+                                            f.write(layer_data)
+                                        
+                                        # Determine content type
+                                        if _is_likely_text_content(layer_data):
+                                            try:
+                                                decoded_text = layer_data.decode('utf-8')
+                                                text_content = decoded_text
+                                                preview = decoded_text[:200]
+                                                data_type = "text"
+                                                content_type = "text/plain"
+                                            except UnicodeDecodeError:
+                                                text_content = f"Binary file: {layer_filename} ({len(layer_data)} bytes)"
+                                                preview = f"Binary file ({len(layer_data)} bytes)"
+                                                data_type = "binary"
+                                                content_type = "application/octet-stream"
+                                        else:
+                                            text_content = f"Binary file: {layer_filename} ({len(layer_data)} bytes)"
+                                            preview = f"Binary file ({len(layer_data)} bytes)"
+                                            data_type = "binary"
+                                            content_type = "application/octet-stream"
+                                    
+                                    # Create single file result
+                                    processing_time = time.time() - start_time
+                                    
+                                    result = {
+                                        "output_file": str(single_output_path),
+                                        "filename": layer_filename,
+                                        "extracted_filename": layer_filename,
+                                        "file_size": os.path.getsize(single_output_path),
+                                        "processing_time": processing_time,
+                                        "content_type": content_type,
+                                        "data_type": data_type,
+                                        "preview": preview,
+                                        "text_content": text_content,
+                                        "original_filename": layer_filename,
+                                        "download_url": f"/api/operations/{operation_id}/download",
+                                        # Single layer markers
+                                        "is_single_layer": True,
+                                        "single_file_extraction": True
+                                    }
+                                    
+                                    update_job_status(
+                                        operation_id,
+                                        "completed",
+                                        100,
+                                        f"Single layer extraction completed: {layer_filename}",
+                                        result=result
+                                    )
+                                    
+                                    # Cleanup input file
+                                    if os.path.exists(stego_file_path):
+                                        os.remove(stego_file_path)
+                                    
+                                    return
+                                
+                        except Exception as layer_error:
+                            print(f"[DEBUG EXTRACT] ❌ Multi-layer processing failed: {layer_error}")
+                            print(f"[DEBUG EXTRACT] ❌ Error type: {type(layer_error)}")
+                            import traceback
+                            print(f"[DEBUG EXTRACT] ❌ Full traceback:")
+                            traceback.print_exc()
+                            
+                            # DEBUGGING: Write error to debug file
+                            with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                                debug_f.write(f"[{datetime.now()}] ERROR: {layer_error}\n")
+                                debug_f.write(f"  Error type: {type(layer_error)}\n")
+                                debug_f.write(f"  Traceback: {traceback.format_exc()}\n")
+                            
+                            # Fall through to regular processing
+                            is_layered_container = False
+                            
+                except UnicodeDecodeError as e:
+                    # Binary data that can't be decoded as UTF-8, continue with regular processing
+                    with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                        debug_f.write(f"  ❌ UnicodeDecodeError: {e}\n")
+                    pass
+                except Exception as e:
+                    # Any other error (including json.JSONDecodeError if json was imported), continue with regular processing
+                    with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
+                        debug_f.write(f"  ❌ Exception in detection: {e}\n")
+                    pass
+            
+            # CRITICAL: Only use detect_filename_from_content as absolute last resort
+            # Never override a valid filename returned from steganography modules
+            if not original_filename:
+                print(f"[DEBUG EXTRACT] No filename provided, detecting from content...")
+                original_filename = detect_filename_from_content(extracted_data)
+            else:
+                print(f"[DEBUG EXTRACT] Using original filename from steganography module: {original_filename}")
+            
+            # Save extracted data to file with original filename (for non-layered containers)
+            if not is_layered_container:
+                safe_filename = sanitize_filename(original_filename)
+                output_path = OUTPUT_DIR / safe_filename
+                
+                # Determine content type and save data appropriately
+                if isinstance(extracted_data, str):
+                    # String data - save as text
+                    with open(output_path, 'w', encoding='utf-8') as f:
+                        f.write(extracted_data)
+                    text_content = extracted_data
+                    preview = extracted_data[:200]
+                    data_type = "text"
+                    content_type = "text/plain"
+                elif isinstance(extracted_data, bytes):
+                    # CRITICAL FIX: Check if this is copyright data from video extraction
+                    is_copyright_data = False
+                    clean_copyright_text = None
+                    
+                    if _is_likely_text_content(extracted_data):
+                        try:
+                            decoded_text = extracted_data.decode('utf-8')
+                            
+                            # Check if this looks like copyright JSON data
+                            import json
+                            try:
+                                copyright_json = json.loads(decoded_text)
+                                
+                                # Check for copyright-specific fields
+                                if (isinstance(copyright_json, dict) and 
+                                    any(key in copyright_json for key in ['author_name', 'copyright_alias', 'timestamp', 'copyright'])):
+                                    
+                                    print(f"[COPYRIGHT FIX] 🎯 Detected copyright JSON data from video extraction (tuple path)")
+                                    is_copyright_data = True
+                                    
+                                    # Create clean copyright text content for display and download
+                                    clean_copyright_text = json.dumps(copyright_json, indent=2, ensure_ascii=False)
+                                    
+                                    # Ensure the filename is .txt for copyright data
+                                    if not original_filename.endswith('.txt'):
+                                        print(f"[COPYRIGHT FIX] 🔧 Changing filename from '{original_filename}' to text file (tuple path)")
+                                        original_filename = f"copyright_info_{operation_id[:8]}.txt"
+                                        safe_filename = sanitize_filename(original_filename)
+                                        output_path = OUTPUT_DIR / safe_filename
+                                    
+                            except (json.JSONDecodeError, TypeError):
+                                pass  # Not JSON data, continue with normal processing
+                            
+                        except UnicodeDecodeError:
+                            pass  # Not text data, continue with normal processing
+                    
+                    if is_copyright_data and clean_copyright_text:
+                        # Save only the clean copyright text, not the raw binary data
+                        print(f"[COPYRIGHT FIX] 💾 Saving clean copyright text ({len(clean_copyright_text)} chars) instead of raw binary ({len(extracted_data)} bytes) (tuple path)")
+                        with open(output_path, 'w', encoding='utf-8') as f:
+                            f.write(clean_copyright_text)
+                        text_content = clean_copyright_text
+                        preview = clean_copyright_text[:200]
+                        data_type = "text"
+                        content_type = "text/plain"
+                    else:
+                        # Normal binary data processing
+                        with open(output_path, 'wb') as f:
+                            f.write(extracted_data)
+                        
+                        # Determine if it's text or binary and set appropriate fields
+                        if _is_likely_text_content(extracted_data):
+                            try:
+                                decoded_text = extracted_data.decode('utf-8')
+                                text_content = decoded_text
+                                preview = decoded_text[:200]
+                                data_type = "text"
+                                content_type = "text/plain"
+                            except UnicodeDecodeError:
+                                # Binary file with text-like signature but invalid UTF-8
+                                text_content = f"Binary file: {original_filename} ({len(extracted_data)} bytes)"
+                                preview = f"Binary file ({len(extracted_data)} bytes)"
+                                data_type = "binary"
+                                content_type = "application/octet-stream"
+                        else:
+                            # Clearly binary content
+                            text_content = f"Binary file: {original_filename} ({len(extracted_data)} bytes)"
+                            preview = f"Binary file ({len(extracted_data)} bytes)"
+                            data_type = "binary"
+                            
+                            # Try to determine specific content type from filename
+                            file_ext = original_filename.lower().split('.')[-1] if '.' in original_filename else ''
+                            content_type_map = {
+                                'pdf': 'application/pdf',
+                                'png': 'image/png',
+                                'jpg': 'image/jpeg',
+                                'jpeg': 'image/jpeg',
+                                'mp4': 'video/mp4',
+                                'avi': 'video/x-msvideo',
+                                'wav': 'audio/wav',
+                                'mp3': 'audio/mpeg',
+                                'txt': 'text/plain'
+                            }
+                            content_type = content_type_map.get(file_ext, 'application/octet-stream')
+                else:
+                    # Convert anything else to string
+                    str_data = str(extracted_data)
+                    with open(output_path, 'w', encoding='utf-8') as f:
+                        f.write(str_data)
+                    text_content = str_data
+                    preview = str_data[:200]
+                    data_type = "text"
+                    content_type = "text/plain"
+                
+                # Create proper result format for tuple extraction
+                processing_time = time.time() - start_time
+                
+                print(f"[DEBUG EXTRACT] Final result fields:")
+                print(f"  filename: {repr(original_filename)}")
+                print(f"  text_content: {repr(text_content)}")
+                print(f"  data_type: {data_type}")
+                print(f"  content_type: {content_type}")
+                
+                result = {
+                    "output_file": str(output_path),
+                    "filename": original_filename,  # CRITICAL: Use exact original filename
+                    "extracted_filename": original_filename,  # Frontend expects this field
+                    "file_size": os.path.getsize(output_path),
+                    "processing_time": processing_time,
+                    "content_type": content_type,  # Frontend expects this field
+                    "data_type": data_type,
+                    "preview": preview,
+                    "text_content": text_content,  # Frontend expects this field - NEVER None
+                    "original_filename": original_filename,
+                    "download_url": f"/api/operations/{operation_id}/download"  # Frontend expects this field
+                }
+                
+                update_job_status(
+                    operation_id,
+                    "completed",
+                    100,
+                    "Tuple extraction completed successfully", 
+                    result=result
+                )
+                
+                # Cleanup input file
+                if os.path.exists(stego_file_path):
+                    os.remove(stego_file_path)
+                    
+                return
+        
+        elif extraction_result and hasattr(extraction_result, 'get') and extraction_result.get('security_mode') == 'single_file_only':
                 # SECURITY: Single-file secure extraction to prevent cross-contamination
                 print(f"[SECURITY] Secure single-file extraction completed")
                 extracted_data = extraction_result.get('extracted_data', '')
@@ -3903,8 +5244,8 @@ async def process_extract_operation(
                     return
                 else:
                     raise Exception("Secure extraction failed - output file not created")
-            
-            elif extraction_result.get('single_extraction', False):
+        
+        elif extraction_result.get('single_extraction', False):
                 # Single layer from multi-layer capable module (legacy path)
                 print(f"[MULTI-LAYER] Single layer extraction from multi-layer file (legacy)")
                 extracted_data = extraction_result.get('extracted_data', '')
@@ -3970,8 +5311,8 @@ async def process_extract_operation(
                     os.remove(stego_file_path)
                 
                 return
-            
-            elif extraction_result.get('success', False):
+        
+        elif extraction_result.get('success', False):
                 # Legacy dict format - should not normally happen with new multi-layer system
                 extracted_data = extraction_result.get('extracted_data', '')
                 # Detect proper filename from content if not provided
@@ -4022,212 +5363,9 @@ async def process_extract_operation(
                     os.remove(stego_file_path)
                 
                 return
-            
-            else:
-                raise Exception("Extraction failed - invalid response format")
         
-        # Handle tuple return (data, filename) from video steganography and other managers
-        elif isinstance(extraction_result, tuple):
-            extracted_data, original_filename = extraction_result
-            print(f"[DEBUG EXTRACT] Tuple unpacked - data type: {type(extracted_data)}, filename: {repr(original_filename)}")
-            
-            # CRITICAL: Check if extracted_data is a layered container JSON
-            is_layered_container = False
-            if isinstance(extracted_data, bytes):
-                try:
-                    # Try to decode as UTF-8 and parse as JSON
-                    decoded_data = extracted_data.decode('utf-8')
-                    import json
-                    parsed_data = json.loads(decoded_data)
-                    
-                    # Check if it's a layered container
-                    if (isinstance(parsed_data, dict) and 
-                        parsed_data.get('type') == 'layered_container' and
-                        'layers' in parsed_data):
-                        
-                        print(f"[DEBUG EXTRACT] Detected layered container with {len(parsed_data['layers'])} layers")
-                        is_layered_container = True
-                        
-                        # Process as multi-layer extraction
-                        from modules.multi_layer_steganography import extract_layered_data_container
-                        
-                        try:
-                            layers = extract_layered_data_container(extracted_data)
-                            print(f"[DEBUG EXTRACT] Successfully extracted {len(layers) if layers else 0} layers")
-                            
-                            if layers and len(layers) > 0:
-                                # Create ZIP file with all layers
-                                import zipfile
-                                import tempfile
-                                
-                                # Generate unique ZIP filename
-                                zip_filename = f"extracted_layers_{operation_id[:8]}.zip"
-                                zip_path = OUTPUT_DIR / zip_filename
-                                
-                                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                                    for i, (layer_data, layer_filename) in enumerate(layers):
-                                        if layer_data is not None and layer_filename:
-                                            # Save layer data to ZIP
-                                            if isinstance(layer_data, str):
-                                                zipf.writestr(layer_filename, layer_data.encode('utf-8'))
-                                            elif isinstance(layer_data, bytes):
-                                                zipf.writestr(layer_filename, layer_data)
-                                
-                                # Create multi-layer result
-                                processing_time = time.time() - start_time
-                                
-                                result = {
-                                    "output_file": str(zip_path),
-                                    "filename": zip_filename,
-                                    "extracted_filename": zip_filename,
-                                    "file_size": os.path.getsize(zip_path),
-                                    "processing_time": processing_time,
-                                    "content_type": "application/zip",
-                                    "data_type": "zip", 
-                                    "preview": f"Multi-layer ZIP containing {len(layers)} layers",
-                                    "text_content": f"Multi-layer extraction completed: {len(layers)} layers extracted",
-                                    "original_filename": zip_filename,
-                                    "download_url": f"/api/operations/{operation_id}/download",
-                                    # Multi-layer specific fields
-                                    "is_multi_layer": True,
-                                    "multi_layer_extraction": True,
-                                    "total_layers_extracted": len(layers),
-                                    "layer_details": [{"filename": fn, "size": len(data) if data else 0} for data, fn in layers]
-                                }
-                                
-                                update_job_status(
-                                    operation_id,
-                                    "completed",
-                                    100,
-                                    f"Multi-layer extraction completed: {len(layers)} layers extracted",
-                                    result=result
-                                )
-                                
-                                # Cleanup input file
-                                if os.path.exists(stego_file_path):
-                                    os.remove(stego_file_path)
-                                
-                                return
-                                
-                        except Exception as layer_error:
-                            print(f"[DEBUG EXTRACT] Multi-layer processing failed: {layer_error}")
-                            # Fall through to regular processing
-                            is_layered_container = False
-                            
-                except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
-                    # Not a layered container, continue with regular processing
-                    pass
-            
-            # CRITICAL: Only use detect_filename_from_content as absolute last resort
-            # Never override a valid filename returned from steganography modules
-            if not original_filename:
-                print(f"[DEBUG EXTRACT] No filename provided, detecting from content...")
-                original_filename = detect_filename_from_content(extracted_data)
-            else:
-                print(f"[DEBUG EXTRACT] Using original filename from steganography module: {original_filename}")
-            
-            # Save extracted data to file with original filename (for non-layered containers)
-            if not is_layered_container:
-                safe_filename = sanitize_filename(original_filename)
-                output_path = OUTPUT_DIR / safe_filename
-                
-                # Determine content type and save data appropriately
-                if isinstance(extracted_data, str):
-                    # String data - save as text
-                    with open(output_path, 'w', encoding='utf-8') as f:
-                        f.write(extracted_data)
-                    text_content = extracted_data
-                    preview = extracted_data[:200]
-                    data_type = "text"
-                    content_type = "text/plain"
-                elif isinstance(extracted_data, bytes):
-                    # Binary data - save as binary
-                    with open(output_path, 'wb') as f:
-                        f.write(extracted_data)
-                    
-                    # Determine if it's text or binary and set appropriate fields
-                    if _is_likely_text_content(extracted_data):
-                        try:
-                            decoded_text = extracted_data.decode('utf-8')
-                            text_content = decoded_text
-                            preview = decoded_text[:200]
-                            data_type = "text"
-                            content_type = "text/plain"
-                        except UnicodeDecodeError:
-                            # Binary file with text-like signature but invalid UTF-8
-                            text_content = f"Binary file: {original_filename} ({len(extracted_data)} bytes)"
-                            preview = f"Binary file ({len(extracted_data)} bytes)"
-                            data_type = "binary"
-                            content_type = "application/octet-stream"
-                    else:
-                        # Clearly binary content
-                        text_content = f"Binary file: {original_filename} ({len(extracted_data)} bytes)"
-                        preview = f"Binary file ({len(extracted_data)} bytes)"
-                        data_type = "binary"
-                        
-                        # Try to determine specific content type from filename
-                        file_ext = original_filename.lower().split('.')[-1] if '.' in original_filename else ''
-                        content_type_map = {
-                            'pdf': 'application/pdf',
-                            'png': 'image/png',
-                            'jpg': 'image/jpeg',
-                            'jpeg': 'image/jpeg',
-                            'mp4': 'video/mp4',
-                            'avi': 'video/x-msvideo',
-                            'wav': 'audio/wav',
-                            'mp3': 'audio/mpeg',
-                            'txt': 'text/plain'
-                        }
-                        content_type = content_type_map.get(file_ext, 'application/octet-stream')
-                else:
-                    # Convert anything else to string
-                    str_data = str(extracted_data)
-                    with open(output_path, 'w', encoding='utf-8') as f:
-                        f.write(str_data)
-                    text_content = str_data
-                    preview = str_data[:200]
-                    data_type = "text"
-                    content_type = "text/plain"
-                
-                # Create proper result format for tuple extraction
-                processing_time = time.time() - start_time
-                
-                print(f"[DEBUG EXTRACT] Final result fields:")
-                print(f"  filename: {repr(original_filename)}")
-                print(f"  text_content: {repr(text_content)}")
-                print(f"  data_type: {data_type}")
-                print(f"  content_type: {content_type}")
-                
-                result = {
-                    "output_file": str(output_path),
-                    "filename": original_filename,  # CRITICAL: Use exact original filename
-                    "extracted_filename": original_filename,  # Frontend expects this field
-                    "file_size": os.path.getsize(output_path),
-                    "processing_time": processing_time,
-                    "content_type": content_type,  # Frontend expects this field
-                    "data_type": data_type,
-                    "preview": preview,
-                    "text_content": text_content,  # Frontend expects this field - NEVER None
-                    "original_filename": original_filename,
-                    "download_url": f"/api/operations/{operation_id}/download"  # Frontend expects this field
-                }
-                
-                update_job_status(
-                    operation_id,
-                    "completed",
-                    100,
-                    "Tuple extraction completed successfully", 
-                    result=result
-                )
-                
-                # Cleanup input file
-                if os.path.exists(stego_file_path):
-                    os.remove(stego_file_path)
-                    
-                return
-        
-        # Handle direct data return
         else:
+            # Handle direct data return (non-dict, non-tuple) or other formats
             extracted_data = extraction_result
             # Detect proper filename from content instead of defaulting to txt
             original_filename = detect_filename_from_content(extracted_data)
@@ -4243,44 +5381,97 @@ async def process_extract_operation(
                 text_content = extracted_data
                 preview = extracted_data[:200]
                 data_type = "text"
+                content_type = "text/plain"
             elif isinstance(extracted_data, bytes):
-                with open(output_path, 'wb') as f:
-                    f.write(extracted_data)
+                # CRITICAL FIX: Check if this is copyright data from video extraction
+                is_copyright_data = False
+                clean_copyright_text = None
+                
                 if _is_likely_text_content(extracted_data):
                     try:
-                        text_content = extracted_data.decode('utf-8')
-                        preview = text_content[:200]
-                        data_type = "text"
+                        decoded_text = extracted_data.decode('utf-8')
+                        
+                        # Check if this looks like copyright JSON data
+                        import json
+                        try:
+                            copyright_json = json.loads(decoded_text)
+                            
+                            # Check for copyright-specific fields
+                            if (isinstance(copyright_json, dict) and 
+                                any(key in copyright_json for key in ['author_name', 'copyright_alias', 'timestamp', 'copyright'])):
+                                
+                                print(f"[COPYRIGHT FIX] 🎯 Detected copyright JSON data from video extraction (direct path)")
+                                is_copyright_data = True
+                                
+                                # Create clean copyright text content for display and download
+                                clean_copyright_text = json.dumps(copyright_json, indent=2, ensure_ascii=False)
+                                
+                                # Ensure the filename is .txt for copyright data
+                                if not original_filename.endswith('.txt'):
+                                    print(f"[COPYRIGHT FIX] 🔧 Changing filename from '{original_filename}' to text file (direct path)")
+                                    original_filename = f"copyright_info_{operation_id[:8]}.txt"
+                                    safe_filename = sanitize_filename(original_filename)
+                                    output_path = OUTPUT_DIR / safe_filename
+                                
+                        except (json.JSONDecodeError, TypeError):
+                            pass  # Not JSON data, continue with normal processing
+                        
                     except UnicodeDecodeError:
+                        pass  # Not text data, continue with normal processing
+                
+                if is_copyright_data and clean_copyright_text:
+                    # Save only the clean copyright text, not the raw binary data
+                    print(f"[COPYRIGHT FIX] 💾 Saving clean copyright text ({len(clean_copyright_text)} chars) instead of raw binary ({len(extracted_data)} bytes) (direct path)")
+                    with open(output_path, 'w', encoding='utf-8') as f:
+                        f.write(clean_copyright_text)
+                    text_content = clean_copyright_text
+                    preview = clean_copyright_text[:200]
+                    data_type = "text"
+                    content_type = "text/plain"
+                else:
+                    # Normal binary data processing
+                    with open(output_path, 'wb') as f:
+                        f.write(extracted_data)
+                    
+                    if _is_likely_text_content(extracted_data):
+                        try:
+                            text_content = extracted_data.decode('utf-8')
+                            preview = text_content[:200]
+                            data_type = "text"
+                            content_type = "text/plain"
+                        except UnicodeDecodeError:
+                            text_content = None
+                            preview = f"Binary file ({len(extracted_data)} bytes)"
+                            data_type = "binary"
+                            content_type = "application/octet-stream"
+                    else:
                         text_content = None
                         preview = f"Binary file ({len(extracted_data)} bytes)"
                         data_type = "binary"
-                else:
-                    text_content = None
-                    preview = f"Binary file ({len(extracted_data)} bytes)"
-                    data_type = "binary"
+                        content_type = "application/octet-stream"
             else:
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(str(extracted_data))
                 text_content = str(extracted_data)
                 preview = text_content[:200]
                 data_type = "text"
+                content_type = "text/plain"
             
-            # Create proper result format for direct extraction
+            # Create result
             processing_time = time.time() - start_time
             
             result = {
                 "output_file": str(output_path),
-                "filename": original_filename,  # Use original filename from steganography module
-                "extracted_filename": original_filename,  # Frontend expects this field
+                "filename": original_filename,
+                "extracted_filename": original_filename,
                 "file_size": os.path.getsize(output_path),
                 "processing_time": processing_time,
-                "content_type": data_type,  # Frontend expects this field
+                "content_type": content_type,
                 "data_type": data_type,
                 "preview": preview,
-                "text_content": text_content,  # Frontend expects this field
+                "text_content": text_content,
                 "original_filename": original_filename,
-                "download_url": f"/api/operations/{operation_id}/download"  # Frontend expects this field
+                "download_url": f"/api/operations/{operation_id}/download"
             }
             
             update_job_status(
@@ -4294,32 +5485,24 @@ async def process_extract_operation(
             # Cleanup input file
             if os.path.exists(stego_file_path):
                 os.remove(stego_file_path)
-                
+            
             return
-        
-        # This line should never be reached since all extraction paths return early
-        raise Exception("Unexpected code path reached in extraction processing")
-        
+
     except Exception as e:
-        # Log detailed exception for debugging
-        import traceback
-        full_error = traceback.format_exc()
-        print(f"[ERROR EXTRACT] Exception in extraction: {e}")
-        print(f"[ERROR EXTRACT] Full traceback: {full_error}")
+        # Safely handle Unicode characters in error messages
+        raw_error = str(e).encode('utf-8', errors='ignore').decode('utf-8')
+        error_msg = translate_error_message(raw_error, carrier_type)
         
-        # Also log to file
-        with open("debug_extraction.log", "a") as f:
-            f.write(f"\n=== ERROR EXTRACTION {operation_id} ===\n")
-            f.write(f"Exception: {e}\n")
-            f.write(f"Traceback: {full_error}\n")
+        # Sanitize error message for console output
+        safe_error_msg = error_msg.encode('ascii', errors='ignore').decode('ascii')
+        print(f"[ERROR] Extraction failed: {safe_error_msg}")
         
-        error_msg = translate_error_message(str(e), carrier_type)
         update_job_status(operation_id, "failed", error=error_msg)
         
-        # Log failure in database (with safety checks)
-        if db and user_id and db_operation_id:
+        # Log extraction failure in database if available
+        if db and db_operation_id:
             try:
-                db.log_operation_complete(
+                db.log_operation_result(
                     db_operation_id,
                     success=False,
                     error_message=error_msg,
@@ -4335,186 +5518,46 @@ async def process_extract_operation(
         except Exception as cleanup_error:
             print(f"[WARNING] Failed to cleanup input file: {cleanup_error}")
 
+
 def get_steganography_manager(carrier_type: str, password: str = ""):
-    """Get appropriate steganography manager based on carrier type"""
-    manager_class = steganography_managers.get(carrier_type)
-    if manager_class:
-        # Different managers have different constructor signatures
-        if carrier_type in ['image', 'document']:
-            # UniversalFileSteganography doesn't take password in constructor
+    """Get the appropriate steganography manager for the carrier type"""
+    if carrier_type not in steganography_managers or steganography_managers[carrier_type] is None:
+        return None
+    
+    try:
+        manager_class = steganography_managers[carrier_type]
+        
+        # Handle different initialization patterns for different managers
+        if carrier_type == "audio":
+            # UniversalFileAudio takes password in __init__
+            return manager_class(password=password)
+        elif carrier_type in ["document", "image"]:
+            # UniversalFileSteganography doesn't take password in __init__
+            # Password is passed to methods instead
             return manager_class()
-        elif carrier_type == 'audio':
-            # UniversalFileAudio may take password in constructor
-            try:
-                return manager_class(password=password)
-            except TypeError:
-                return manager_class()
-        elif carrier_type == 'video':
-            # FinalVideoSteganographyManager doesn't take password in constructor
-            return manager_class()
+        elif carrier_type == "video":
+            # VideoSteganographyManager takes password in __init__
+            print(f"[MANAGER DEBUG] Creating VideoSteganographyManager with password: '{password}' (length: {len(password)})")
+            print(f"[MANAGER DEBUG] Manager class: {manager_class}")
+            manager = manager_class(password=password)
+            print(f"[MANAGER DEBUG] Created manager, checking password: '{getattr(manager, 'password', 'NO ATTR')}' (length: {len(getattr(manager, 'password', '')) if hasattr(manager, 'password') else 0})")
+            return manager
         else:
-            # Fallback - try with password first, then without
+            # Try with password first, fallback to no password
             try:
                 return manager_class(password=password)
             except TypeError:
+                # Some managers don't accept password in __init__
                 return manager_class()
-    return None
+    except Exception as e:
+        # Safely handle Unicode characters in error messages
+        safe_error = str(e).encode('ascii', errors='ignore').decode('ascii')
+        print(f"[ERROR] Failed to create {carrier_type} manager: {safe_error}")
+        return None
+
 
 # ============================================================================
-# DIRECT FILE DOWNLOAD ENDPOINT
-# ============================================================================
-
-@app.get("/api/download/{filename}")
-async def download_file_by_name(filename: str):
-    """Download a file by filename from outputs directory"""
-    
-    # Security check - prevent directory traversal
-    if '..' in filename or '/' in filename or '\\' in filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    
-    # Check outputs directory first
-    output_file = OUTPUT_DIR / filename
-    if not output_file.exists():
-        # Fallback to uploads directory (for testing)
-        output_file = UPLOAD_DIR / filename
-        if not output_file.exists():
-            raise HTTPException(status_code=404, detail="File not found")
-    
-    # Determine media type based on file extension
-    file_ext = Path(filename).suffix.lower()
-    media_type_map = {
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg', 
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.bmp': 'image/bmp',
-        '.mp4': 'video/mp4',
-        '.avi': 'video/x-msvideo',
-        '.mov': 'video/quicktime',
-        '.mkv': 'video/x-matroska',
-        '.webm': 'video/webm',
-        '.wav': 'audio/wav',
-        '.mp3': 'audio/mpeg',
-        '.flac': 'audio/flac',
-        '.ogg': 'audio/ogg',
-        '.aac': 'audio/aac',
-        '.m4a': 'audio/mp4',
-        '.pdf': 'application/pdf',
-        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        '.txt': 'text/plain',
-        '.rtf': 'application/rtf',
-        '.doc': 'application/msword'
-    }
-    
-    media_type = media_type_map.get(file_ext, 'application/octet-stream')
-    
-    # Debug: Log file info
-    print(f"[DOWNLOAD] File: {filename}")
-    print(f"[DOWNLOAD] Extension: {file_ext}")
-    print(f"[DOWNLOAD] Media Type: {media_type}")
-    print(f"[DOWNLOAD] File Size: {output_file.stat().st_size} bytes")
-    
-    # Create FileResponse with proper headers for download
-    response = FileResponse(
-        path=str(output_file),
-        filename=filename,
-        media_type=media_type
-    )
-    
-    # Ensure Content-Disposition header is set properly for proper downloading
-    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
-    
-    # Add additional headers to ensure proper file handling
-    response.headers["Content-Type"] = media_type
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    
-    return response
-
-# ============================================================================
-# HEALTH AND STATUS ENDPOINTS
-# ============================================================================
-
-@app.get("/api/health")
-async def health_check(db: Optional[SteganographyDatabase] = Depends(get_db)):
-    """Health check endpoint"""
-    health_data = {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "version": "2.0.0",
-        "active_jobs": len(active_jobs),
-        "available_managers": {
-            "image": steganography_managers['image'] is not None,
-            "video": steganography_managers['video'] is not None,
-            "audio": steganography_managers['audio'] is not None,
-            "document": steganography_managers['document'] is not None
-        },
-        "database_available": database_available
-    }
-    
-    if db:
-        db_health = db.health_check()
-        health_data["database"] = db_health
-    else:
-        health_data["database"] = {"status": "not_configured"}
-    
-    return health_data
-
-@app.get("/api/status")
-async def simple_status():
-    """Simple status endpoint without database dependencies"""
-    return {
-        "status": "running",
-        "timestamp": datetime.now().isoformat(),
-        "version": "2.0.0"
-    }
-
-@app.get("/api/operations")
-async def list_operations(limit: int = 100):
-    """List recent operations"""
-    operations = []
-    for op_id, job in list(active_jobs.items())[-limit:]:
-        operations.append({
-            "operation_id": op_id,
-            "status": job["status"],
-            "progress": job.get("progress"),
-            "created_at": job["created_at"],
-            "carrier_type": job.get("carrier_type"),
-            "content_type": job.get("content_type"),
-            "operation_type": job.get("operation_type", "hide")
-        })
-    
-    return {"operations": operations}
-
-# @app.get("/forensic-evidence")
-# async def serve_forensic_evidence():
-#     """Serve the forensic evidence page"""
-#     return FileResponse("templates/index.html")
-# NOTE: Commented out for Vercel deployment - frontend handles all UI routing
-
-# ============================================================================
-# CLEANUP AND MAINTENANCE
-# ============================================================================
-
-# @app.on_event("startup")
-# async def startup_event():
-#     """Application startup tasks"""
-#     print("🚀 Enhanced Steganography API starting up...")
-    
-#     # Clean up old files
-#     cleanup_old_files(UPLOAD_DIR, 2)  # 2 hours for uploads
-#     cleanup_old_files(OUTPUT_DIR, 24)  # 24 hours for outputs
-    
-#     print("✅ Startup complete!")
-
-# @app.on_event("shutdown")
-# async def shutdown_event():
-#     """Application shutdown tasks"""
-#     print("🛑 Enhanced Steganography API shutting down...")
-
-# ============================================================================
-# MAIN ENTRY POINT
+# MAIN ENTRY POINT  
 # ============================================================================
 
 # Local development server - runs when executed directly
@@ -4550,3 +5593,4 @@ if __name__ == "__main__":
         print("\n🛑 Server stopped by user")
     except Exception as e:
         print(f"❌ Server failed to start: {e}")
+

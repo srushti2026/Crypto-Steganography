@@ -144,6 +144,42 @@ class SafeVideoSteganography:
             print(f"[SAFE VIDEO] ✅ Extracted {len(payload_data)} bytes")
             print(f"[SAFE VIDEO] ✅ Filename: {metadata['filename']}")
             
+            # SPECIAL HANDLING: Check if this is a layered container that needs format preservation
+            print(f"[SAFE VIDEO] 🔍 Checking for layered container: filename='{metadata['filename']}'")
+            if metadata['filename'] == 'layered_container.json' and isinstance(payload_data, bytes):
+                print(f"[SAFE VIDEO] 📋 Detected layered_container.json filename - parsing container")
+                try:
+                    # Try to parse as layered container JSON
+                    container_json = payload_data.decode('utf-8')
+                    import json
+                    container = json.loads(container_json)
+                    
+                    print(f"[SAFE VIDEO] 📋 JSON parsed - type: {container.get('type', 'missing')}")
+                    print(f"[SAFE VIDEO] 📋 Has layers: {'layers' in container}")
+                    if 'layers' in container:
+                        print(f"[SAFE VIDEO] 📋 Number of layers: {len(container['layers'])}")
+                    
+                    if (isinstance(container, dict) and 
+                        container.get('type') == 'layered_container' and
+                        'layers' in container and 
+                        len(container['layers']) == 1):
+                        
+                        # Single layer container - extract the original filename
+                        layer = container['layers'][0]
+                        if isinstance(layer, dict) and layer.get('filename'):
+                            original_filename = layer['filename']
+                            print(f"[SAFE VIDEO] 🎯 Layered container detected - using original filename: {original_filename}")
+                            return (payload_data, original_filename)
+                        else:
+                            print(f"[SAFE VIDEO] ⚠️  Layer missing filename: {layer}")
+                    else:
+                        print(f"[SAFE VIDEO] ⚠️  Not a single-layer container")
+                except Exception as e:
+                    print(f"[SAFE VIDEO] ⚠️  Layered container parsing failed: {e}")
+                    # Fall through to return original metadata
+            else:
+                print(f"[SAFE VIDEO] ℹ️  Not a layered container file")
+            
             return (payload_data, metadata['filename'])
         
         except Exception as e:
