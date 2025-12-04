@@ -377,6 +377,14 @@ export default function General() {
     initializeComponent();
   }, [navigate]);
 
+  // FIXED: Clear operation results when carrier type changes to prevent filename confusion
+  useEffect(() => {
+    console.log('[CARRIER TYPE CHANGED] Clearing operation results to prevent filename confusion');
+    setOperationResult(null);
+    setCurrentOperationId(null);
+    setIsProcessing(false);
+  }, [carrierType]);
+
   const loadApiData = async () => {
     try {
       console.log('🔍 Loading API data from:', API_BASE_URL);
@@ -1037,6 +1045,7 @@ export default function General() {
       formData.append('stego_file', extractFile);
       formData.append('password', password);
       formData.append('output_format', 'auto');
+      formData.append('extraction_context', 'general');  // Identify this as general extraction
 
       if (currentUser?.id) {
         formData.append('user_id', currentUser.id);
@@ -1273,10 +1282,88 @@ export default function General() {
         ? `${API_BASE_URL}/api/operations/${currentOperationId}/download-batch`
         : `${API_BASE_URL}/api/operations/${currentOperationId}/download`;
       
-      // For batch operations, suggest a ZIP filename
-      const defaultFilename = isBatchOperation 
-        ? `batch_results_${Date.now()}.zip`
-        : (operationResult?.extracted_filename || operationResult?.filename || `result_${Date.now()}.bin`);
+      // FIXED: Better filename determination with validation and logging
+      let defaultFilename;
+      
+      if (isBatchOperation) {
+        defaultFilename = `batch_results_${Date.now()}.zip`;
+      } else {
+        // For single operations, prioritize the filename from the operation result
+        const resultFilename = operationResult?.filename;
+        const extractedFilename = operationResult?.extracted_filename;
+        
+        console.log('[DOWNLOAD DEBUG] Filename selection:', {
+          operationResult,
+          resultFilename,
+          extractedFilename,
+          carrierType,
+          currentOperationId
+        });
+        
+        if (extractedFilename) {
+          defaultFilename = extractedFilename;
+          console.log('[DOWNLOAD DEBUG] Using extracted filename:', defaultFilename);
+        } else if (resultFilename) {
+          defaultFilename = resultFilename;
+          console.log('[DOWNLOAD DEBUG] Using result filename:', defaultFilename);
+        } else {
+          // Generate appropriate fallback based on carrier type
+          const timestamp = Date.now();
+          switch (carrierType) {
+            case 'image':
+              defaultFilename = `processed_image_${timestamp}.png`;
+              break;
+            case 'audio':
+              defaultFilename = `processed_audio_${timestamp}.wav`;
+              break;
+            case 'video':
+              defaultFilename = `processed_video_${timestamp}.mp4`;
+              break;
+            case 'document':
+              defaultFilename = `processed_document_${timestamp}.pdf`;
+              break;
+            default:
+              defaultFilename = `processed_file_${timestamp}.bin`;
+          }
+          console.log('[DOWNLOAD DEBUG] Using fallback filename:', defaultFilename);
+        }
+        
+        // VALIDATION: For extraction, preserve original file extensions; for embedding, validate against carrier
+        if (selectedTab === "extract") {
+          // During extraction, keep the original filename from the hidden file - don't validate against carrier type
+          console.log('[DOWNLOAD] Preserving extracted file extension:', defaultFilename);
+        } else {
+          // Only validate extensions for embedding operations (when creating carrier files)
+          const fileExt = defaultFilename.split('.').pop()?.toLowerCase();
+          const expectedExtensions = {
+            'image': ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
+            'audio': ['wav', 'mp3', 'flac', 'ogg', 'aac', 'm4a'],
+            'video': ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv'],
+            'document': ['pdf', 'doc', 'docx', 'txt', 'rtf']
+          };
+          
+          const validExtensions = expectedExtensions[carrierType] || [];
+          
+          if (fileExt && !validExtensions.includes(fileExt)) {
+            console.warn('[DOWNLOAD WARNING] File extension mismatch:', {
+              filename: defaultFilename,
+              extension: fileExt,
+              carrierType,
+              expectedExtensions: validExtensions
+            });
+            
+            // Fix the extension based on carrier type
+            const baseName = defaultFilename.substring(0, defaultFilename.lastIndexOf('.'));
+            const correctExt = validExtensions[0] || 'bin';
+            defaultFilename = `${baseName}.${correctExt}`;
+            
+            console.log('[DOWNLOAD FIX] Corrected filename:', defaultFilename);
+            toast.success(`Filename extension corrected to match file type: ${defaultFilename}`);
+          }
+        }
+      }
+      
+      console.log('[DOWNLOAD] Final filename:', defaultFilename);
       
       // Use the utility function for proper save as functionality
       const { downloadFromUrl } = await import('@/utils/fileDownload');

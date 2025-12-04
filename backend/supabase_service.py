@@ -6,7 +6,15 @@ import hashlib
 import time
 from datetime import datetime
 from typing import Optional, Dict, List, Any
-from supabase_config import get_supabase_client
+
+# Handle different import contexts
+try:
+    from supabase_config import get_supabase_client
+except ImportError:
+    try:
+        from .supabase_config import get_supabase_client
+    except ImportError:
+        from backend.supabase_config import get_supabase_client
 
 class SteganographyDatabase:
     """

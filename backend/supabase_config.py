@@ -2,7 +2,32 @@
 Supabase Configuration for Video Steganography Project
 """
 import os
+from pathlib import Path
 from supabase import create_client, Client
+
+# Load environment variables if .env file exists
+def _load_env_if_needed():
+    """Load environment variables from .env file for local development"""
+    env_path = Path(__file__).parent / '.env'
+    
+    if env_path.exists() and not os.environ.get("SUPABASE_URL"):
+        with open(env_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+                
+            if '=' in line:
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                if key and value:
+                    os.environ[key] = value
+
+# Load environment variables
+_load_env_if_needed()
 
 # Supabase configuration - SECURED WITH ENVIRONMENT VARIABLES
 SUPABASE_URL = os.environ.get("SUPABASE_URL")

@@ -668,7 +668,7 @@ class UniversalFileAudio:
             # CRITICAL FIX: Try multiple spacing values to find the right one
             magic_found = False
             
-            for spacing in [2, 4, 1]:  # Try different spacing values
+            for spacing in [4, 3, 2, 1]:  # Try all possible spacing values (most common first)
                 extracted_bits = []
                 
                 print(f"[SIMPLE AUDIO] Trying spacing {spacing} for extraction")

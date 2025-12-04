@@ -146,7 +146,10 @@ try:
     try:
         from .supabase_service import get_database, SteganographyDatabase
     except ImportError:
-        from supabase_service import get_database, SteganographyDatabase
+        try:
+            from supabase_service import get_database, SteganographyDatabase
+        except ImportError:
+            from backend.supabase_service import get_database, SteganographyDatabase
     database_available = True
     print("[OK] Supabase database service loaded")
 except ImportError as e:
@@ -200,6 +203,7 @@ class EmbedRequest(BaseModel):
 class ExtractRequest(BaseModel):
     password: str = Field(..., description="Password for decryption")
     output_format: str = Field(default="auto", description="Output format preference")
+    extraction_context: str = Field(default="general", description="Context for extraction: general, copyright, forensic")
 
 class ProjectRequest(BaseModel):
     name: str = Field(..., description="Project name")
@@ -368,12 +372,17 @@ def generate_clean_output_filename(original_filename: str, prefix: str = "stego_
     return f"{prefix}{clean_name}_{unique_suffix}{ext}"
 
 def get_file_hash(file_path: str) -> str:
-    """Calculate MD5 hash of file"""
-    hash_md5 = hashlib.md5()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
+    """Calculate MD5 hash of file - FIXED"""
+    try:
+        hash_md5 = hashlib.md5()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return hash_md5.hexdigest()
+    except Exception as e:
+        print(f"[HASH ERROR] Failed to calculate hash for {file_path}: {e}")
+        # Return a timestamp-based fallback hash
+        return f"hash_{int(time.time())}_{os.path.getsize(file_path) if os.path.exists(file_path) else 0}"
 
 def cleanup_old_files(directory: Path, max_age_hours: int = 24):
     """Clean up old files from directory"""
@@ -517,6 +526,70 @@ def detect_file_format_from_binary(binary_content):
     
     # If no format detected, return None to keep original filename
     return None
+
+def _is_likely_forensic_data(data, filename):
+    """Check if extracted data is likely forensic evidence that should be blocked from General page"""
+    if not data:
+        return False
+    
+    # Check filename patterns that indicate forensic data
+    if filename and isinstance(filename, str):
+        forensic_patterns = [
+            'forensic_case',
+            'evidence_',
+            'investigation_',
+            'case_',
+            '.json'  # JSON files are often forensic metadata
+        ]
+        filename_lower = filename.lower()
+        if any(pattern in filename_lower for pattern in forensic_patterns):
+            print(f"[FORENSIC FILTER] Forensic filename pattern detected: {filename}")
+            return True
+    
+    # Check data content patterns (if it's text/JSON)
+    if isinstance(data, bytes):
+        try:
+            data_str = data.decode('utf-8', errors='ignore')
+        except:
+            data_str = str(data)
+    elif isinstance(data, str):
+        data_str = data
+    else:
+        data_str = str(data)
+    
+    # Look for forensic-specific content patterns
+    forensic_content_patterns = [
+        '"forensic_metadata"',
+        '"case_number"',
+        '"investigation_id"',
+        '"evidence_tag"',
+        '"chain_of_custody"',
+        'forensic_case_',
+        'Evidence ID:',
+        'Chain of Custody:',
+        'Investigation:'
+    ]
+    
+    data_lower = data_str.lower()
+    for pattern in forensic_content_patterns:
+        if pattern.lower() in data_lower:
+            print(f"[FORENSIC FILTER] Forensic content pattern detected: {pattern}")
+            return True
+    
+    # Check if data looks like JSON with forensic structure
+    if data_str.strip().startswith('{') and data_str.strip().endswith('}'):
+        try:
+            import json
+            json_data = json.loads(data_str)
+            if isinstance(json_data, dict):
+                forensic_keys = ['forensic_metadata', 'case_number', 'evidence_tag', 'investigation_id']
+                if any(key in json_data for key in forensic_keys):
+                    print(f"[FORENSIC FILTER] Forensic JSON structure detected")
+                    return True
+        except:
+            pass
+    
+    return False
 
 def create_layered_data_container(layers_info):
     """Create a container that holds multiple data layers with proper format preservation
@@ -1836,6 +1909,7 @@ async def extract_data(
     stego_file: UploadFile = File(...),
     password: str = Form(...),
     output_format: str = Form("auto"),
+    extraction_context: str = Form("general"),
     user_id: Optional[str] = Form(None),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Optional[SteganographyDatabase] = Depends(get_db)
@@ -1932,7 +2006,8 @@ async def extract_data(
             user_id,
             db,
             db_operation_id,  # Pass the database operation ID
-            fallback_types  # Pass fallback extraction methods
+            fallback_types,  # Pass fallback extraction methods
+            extraction_context  # Pass extraction context for copyright detection
         )
         
         return OperationResponse(
@@ -2612,8 +2687,25 @@ async def process_embed_operation(
                             print(f"[EMBED DEBUG] is_layered_container result: {is_existing_layered}")
                             
                             if is_existing_layered:
+                                # Extract existing layers from layered container
+                                print(f"[EMBED DEBUG] Attempting to extract existing layers from layered container")
+                                print(f"[EMBED DEBUG] existing_data_for_check type: {type(existing_data_for_check)}")
+                                print(f"[EMBED DEBUG] existing_data_for_check value preview: {str(existing_data_for_check)[:500] if existing_data_for_check else 'None'}")
+                                
                                 existing_data_for_check = decoded_str
                                 print(f"[EMBED DEBUG] Set existing_data_for_check to decoded string")
+                                
+                                try:
+                                    # Add extra safety check before calling extraction
+                                    if existing_data_for_check is None:
+                                        print(f"[EMBED ERROR] existing_data_for_check is None, cannot extract layers")
+                                        existing_layers = []
+                                    else:
+                                        existing_layers = extract_layered_data_container(existing_data_for_check)
+                                        print(f"[EMBED DEBUG] Extracted {len(existing_layers) if existing_layers else 0} existing layers")
+                                except Exception as e:
+                                    print(f"[EMBED ERROR] Failed to extract existing layers: {e}")
+                                    existing_layers = []
                             else:
                                 print(f"[EMBED DEBUG] Not a layered container, treating as binary data")
                     except (UnicodeDecodeError, json.JSONDecodeError) as decode_error:
@@ -3420,17 +3512,25 @@ def detect_filename_from_content(data):
         # Video and some other managers return dict - use generic name
         return "extracted_data.bin"
     elif isinstance(data, str):
-        try:
-            data_bytes = data.encode('utf-8')
-        except:
-            return "extracted_file.txt"
+        # If it's already a string, it's definitely text content
+        return "extracted_text.txt"
     elif isinstance(data, bytes):
         data_bytes = data
     else:
         # Unknown type - use generic name
         return "extracted_file.bin"
     
-    # Check for common file signatures
+    # CRITICAL FIX: Check for text content FIRST before checking binary signatures
+    # This prevents text messages from being misidentified as images
+    try:
+        decoded_text = data_bytes.decode('utf-8', errors='strict')
+        # If we can decode it as UTF-8 without errors, and it looks like text
+        if len(decoded_text) > 0 and all(ord(c) < 127 or c.isspace() or c in 'áéíóúñüç' for c in decoded_text[:100]):
+            return "extracted_text.txt"
+    except UnicodeDecodeError:
+        pass  # Not valid UTF-8 text, continue with binary detection
+    
+    # Only check binary file signatures if it's NOT valid text
     if data_bytes.startswith(b'\x89PNG\r\n\x1a\n'):
         return "extracted_image.png"
     elif data_bytes.startswith(b'\xFF\xD8\xFF'):
@@ -3455,18 +3555,9 @@ def detect_filename_from_content(data):
         return "extracted_audio.flac"
     elif data_bytes.startswith(b'\x00\x00\x00\x18ftypmp4') or data_bytes.startswith(b'\x00\x00\x00\x20ftypmp4'):
         return "extracted_video.mp4"
-    else:
-        # Check if it looks like text content
-        try:
-            if isinstance(data, str):
-                return "extracted_text.txt"
-            else:
-                decoded = data_bytes.decode('utf-8', errors='ignore')
-                if all(ord(c) < 128 or c.isspace() for c in decoded[:100]):  # ASCII-like content
-                    return "extracted_text.txt"
-        except:
-            pass
     
+    # If we reach here, it's not a recognized binary format and not valid text
+    # Default to binary file  
     return "extracted_file.bin"
 
 async def process_forensic_extract_operation(
@@ -3520,68 +3611,76 @@ async def process_forensic_extract_operation(
             if carrier_type == "audio":
                 print(f"[AUDIO DEBUG] *** REACHED AUDIO EXTRACTION CODE ***")
                 extraction_result = manager.extract_data(stego_file_path)
+            elif carrier_type == "video":
+                # Video steganography for forensic extraction with full capabilities
+                try:
+                    extraction_result = manager.extract_data(stego_file_path, password=password, extraction_context="forensic")
+                except TypeError:
+                    # Fallback for older video managers that don't support extraction_context
+                    extraction_result = manager.extract_data(stego_file_path)
+            else:
+                extraction_result = manager.extract_data(stego_file_path)
                 
-                # AUDIO-SPECIFIC: If extraction returns data but it can't be decoded as UTF-8,
-                # try password recovery (this handles password mismatch cases)
+                # AUDIO-SPECIFIC: Validate extraction result for forensic audio files
                 if extraction_result and isinstance(extraction_result, tuple):
                     test_data, test_filename = extraction_result
                     if test_data:
                         try:
-                            # Try to decode as UTF-8 to check if it's valid forensic JSON
-                            if isinstance(test_data, bytes):
-                                test_text = test_data.decode('utf-8')
-                            else:
-                                test_text = str(test_data)
-                            
-                            # Try to parse as JSON to verify it's valid forensic data
-                            import json
-                            test_json = json.loads(test_text)
-                            if test_json.get("type") != "forensic_evidence":
-                                raise ValueError("Not forensic evidence")
+                            # For audio forensic extraction, the data might be binary file content (MP3, etc.)
+                            # Don't force JSON validation on binary data - just check if we have valid data
+                            if isinstance(test_data, bytes) and len(test_data) > 0:
+                                print(f"[AUDIO DEBUG] Primary extraction successful - got {len(test_data)} bytes of data")
+                                print(f"[AUDIO DEBUG] Extracted filename: {test_filename}")
+                                # This is valid - could be MP3, MP4, or other binary file
                                 
-                            print(f"[AUDIO DEBUG] Primary extraction successful - valid forensic data")
+                            elif isinstance(test_data, str):
+                                # If it's string data, try to validate as JSON forensic metadata
+                                import json
+                                test_json = json.loads(test_data)
+                                if test_json.get("type") != "forensic_evidence":
+                                    print(f"[AUDIO DEBUG] String data is not forensic metadata, but that's OK for binary files")
+                                else:
+                                    print(f"[AUDIO DEBUG] Primary extraction successful - valid forensic JSON metadata")
+                            else:
+                                print(f"[AUDIO DEBUG] Primary extraction successful - data type: {type(test_data)}")
+                                
+                        except Exception as validation_error:
+                            print(f"[AUDIO DEBUG] Validation note: {validation_error} - but this is OK for binary file extraction")
                             
-                        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as decode_error:
-                            print(f"[AUDIO RECOVERY] Primary extraction data invalid ({decode_error}), trying password recovery...")
-                            
-                            # Try common passwords for forensic audio files
-                            recovery_passwords = ["", "forensic", None]
-                            
-                            for recovery_pwd in recovery_passwords:
-                                try:
-                                    print(f"[AUDIO RECOVERY] Trying password: {recovery_pwd if recovery_pwd is not None else 'None'}")
-                                    recovery_manager = get_steganography_manager(carrier_type, recovery_pwd or "")
-                                    recovery_result = recovery_manager.extract_data(stego_file_path)
-                                    
-                                    if recovery_result and isinstance(recovery_result, tuple):
-                                        recovery_data, recovery_filename = recovery_result
-                                        if recovery_data:
-                                            # Test if this recovery attempt worked
-                                            try:
-                                                if isinstance(recovery_data, bytes):
-                                                    recovery_text = recovery_data.decode('utf-8')
-                                                else:
-                                                    recovery_text = str(recovery_data)
-                                                
-                                                recovery_json = json.loads(recovery_text)
-                                                if recovery_json.get("type") == "forensic_evidence":
-                                                    print(f"[AUDIO RECOVERY] ✅ Recovery successful with password: {recovery_pwd if recovery_pwd is not None else 'None'}")
-                                                    extraction_result = recovery_result
-                                                    break
+                        except Exception as decode_error:
+                            # Only run recovery if extraction actually failed (e.g., decryption error)
+                            # Not for validation issues (binary data is expected for audio files)
+                            if "decryption" in str(decode_error).lower() or "password" in str(decode_error).lower():
+                                print(f"[AUDIO RECOVERY] Decryption error detected ({decode_error}), trying password recovery...")
+                                
+                                # Try common passwords for forensic audio files
+                                recovery_passwords = ["", "forensic", None]
+                                
+                                for recovery_pwd in recovery_passwords:
+                                    try:
+                                        print(f"[AUDIO RECOVERY] Trying password: {recovery_pwd if recovery_pwd is not None else 'None'}")
+                                        recovery_manager = get_steganography_manager(carrier_type, recovery_pwd or "")
+                                        recovery_result = recovery_manager.extract_data(stego_file_path)
+                                        
+                                        if recovery_result and isinstance(recovery_result, tuple):
+                                            recovery_data, recovery_filename = recovery_result
+                                            if recovery_data:
+                                                print(f"[AUDIO RECOVERY] ✅ Recovery successful with password: {recovery_pwd if recovery_pwd is not None else 'None'}")
+                                                extraction_result = recovery_result
+                                                break
                                                     
-                                            except (UnicodeDecodeError, json.JSONDecodeError):
-                                                continue
-                                                
-                                except Exception as recovery_error:
-                                    print(f"[AUDIO RECOVERY] Recovery failed with password {recovery_pwd}: {recovery_error}")
-                                    continue
+                                    except Exception as recovery_error:
+                                        print(f"[AUDIO RECOVERY] Recovery failed with password {recovery_pwd}: {recovery_error}")
+                                        continue
+                                else:
+                                    print(f"[AUDIO RECOVERY] All recovery attempts failed")
+                                    # Provide a specific error message for password mismatch
+                                    raise Exception("Audio forensic extraction detected encrypted data but the provided password is incorrect. Please verify the password used during embedding, or try with no password if the data was not encrypted.")
                             else:
-                                print(f"[AUDIO RECOVERY] All recovery attempts failed")
-                                # Provide a specific error message for password mismatch
-                                raise Exception("Audio forensic extraction detected encrypted data but the provided password is incorrect. Please verify the password used during embedding, or try with no password if the data was not encrypted.")
-                                
-            else:
-                extraction_result = manager.extract_data(stego_file_path, password=password)
+                                print(f"[AUDIO DEBUG] Non-critical validation note: {decode_error} - continuing with extraction")
+                        extraction_result = manager.extract_data(stego_file_path, password=password)
+                else:
+                    extraction_result = manager.extract_data(stego_file_path, password=password)
                 
             print(f"[FORENSIC EXTRACT DEBUG] Manager returned: {type(extraction_result)}, value: {extraction_result}")
             
@@ -3969,7 +4068,7 @@ This appears to be a standard hidden file without forensic context.
             except Exception as db_error:
                 print(f"[WARNING] Database update failed: {db_error}")
 
-def _try_extraction_with_manager(manager, stego_file_path: str, password: str, method_type: str, is_fallback: bool = False):
+def _try_extraction_with_manager(manager, stego_file_path: str, password: str, method_type: str, is_fallback: bool = False, extraction_context: str = "general"):
     """Helper function to try extraction with a specific manager - SECURITY FIXED"""
     try:
         fallback_marker = " [FALLBACK]" if is_fallback else ""
@@ -3978,7 +4077,13 @@ def _try_extraction_with_manager(manager, stego_file_path: str, password: str, m
             print(f"[SECURE EXTRACT{fallback_marker}] Manager password set to: {repr(manager.safe_stego.password)}")
         
         # CRITICAL SECURITY FIX: Force secure extraction for ALL multi-layer capable managers
-        from modules.multi_layer_steganography import UniversalFileSteganography
+        try:
+            from modules.multi_layer_steganography import UniversalFileSteganography
+        except ImportError:
+            try:
+                from .modules.multi_layer_steganography import UniversalFileSteganography
+            except ImportError:
+                from backend.modules.multi_layer_steganography import UniversalFileSteganography
         
         print(f"[SECURE EXTRACT DEBUG] Manager type: {type(manager)}")
         print(f"[SECURE EXTRACT DEBUG] Manager class name: {manager.__class__.__name__}")
@@ -4065,7 +4170,7 @@ def _try_extraction_with_manager(manager, stego_file_path: str, password: str, m
                 print(f"[SECURE EXTRACT] Calling extract_data with output_dir: {OUTPUT_DIR}, fast_mode: {is_video}")
                 
                 if is_video:
-                    result = manager.extract_data(stego_file_path, password=password, output_dir=str(OUTPUT_DIR), fast_mode=True)
+                    result = manager.extract_data(stego_file_path, password=password, output_dir=str(OUTPUT_DIR), fast_mode=True, extraction_context=extraction_context)
                 else:
                     result = manager.extract_data(stego_file_path, password=password, output_dir=str(OUTPUT_DIR))
                     
@@ -4093,7 +4198,23 @@ def _try_extraction_with_manager(manager, stego_file_path: str, password: str, m
                         print(f"[VIDEO FALLBACK] Legacy result type: {type(legacy_result)}")
                         print(f"[VIDEO FALLBACK] Legacy result: {legacy_result}")
                         
-                        if legacy_result is not None:
+                        # GENERAL PAGE PROTECTION: Validate legacy extraction results
+                        if legacy_result is not None and extraction_context == "general":
+                            if isinstance(legacy_result, tuple) and len(legacy_result) >= 2:
+                                extracted_data, filename = legacy_result[0], legacy_result[1]
+                                
+                                # Check if extracted data looks like forensic evidence
+                                if _is_likely_forensic_data(extracted_data, filename):
+                                    print(f"[VIDEO FALLBACK] 🚫 GENERAL PAGE: Blocking forensic contamination from legacy extraction")
+                                    print(f"[VIDEO FALLBACK] Forensic data detected - filename: {filename}")
+                                    result = {"success": False, "error": "No valid data found for this video/password combination"}
+                                else:
+                                    print(f"[VIDEO FALLBACK] ✅ GENERAL PAGE: Legacy extraction validated - not forensic data")
+                                    result = legacy_result
+                            else:
+                                print(f"[VIDEO FALLBACK] ✅ SUCCESS with legacy video steganography!")
+                                result = legacy_result
+                        elif legacy_result is not None:
                             print(f"[VIDEO FALLBACK] ✅ SUCCESS with legacy video steganography!")
                             result = legacy_result
                         else:
@@ -4112,7 +4233,7 @@ def _try_extraction_with_manager(manager, stego_file_path: str, password: str, m
                 try:
                     print(f"[SECURE EXTRACT] Trying without output_dir, fast_mode: {is_video}")
                     if is_video:
-                        result = manager.extract_data(stego_file_path, password=password, fast_mode=True)
+                        result = manager.extract_data(stego_file_path, password=password, fast_mode=True, extraction_context=extraction_context)
                     else:
                         result = manager.extract_data(stego_file_path, password=password)
                     print(f"[SECURE EXTRACT] extract_data (no output_dir) returned: {type(result)} - {result}")
@@ -4120,7 +4241,7 @@ def _try_extraction_with_manager(manager, stego_file_path: str, password: str, m
                     print(f"[SECURE EXTRACT] TypeError without password: {e2}")
                     # Ultimate fallback for old managers
                     if is_video:
-                        result = manager.extract_data(stego_file_path, fast_mode=True)
+                        result = manager.extract_data(stego_file_path, fast_mode=True, extraction_context=extraction_context)
                     else:
                         result = manager.extract_data(stego_file_path)
                     print(f"[SECURE EXTRACT] extract_data (minimal) returned: {type(result)} - {result}")
@@ -4146,7 +4267,8 @@ async def process_extract_operation(
     user_id: Optional[str],
     db: Optional[SteganographyDatabase],
     db_operation_id: Optional[str] = None,
-    fallback_types: list = None
+    fallback_types: list = None,
+    extraction_context: str = "general"
 ):
     """Background task to process extraction operation with fallback support"""
     
@@ -4174,7 +4296,7 @@ async def process_extract_operation(
             print(f"[EXTRACT DEBUG] Manager type: {type(manager).__name__}")
             # Try primary extraction method
             print(f"[EXTRACT DEBUG] Calling _try_extraction_with_manager for primary method")
-            extraction_result = _try_extraction_with_manager(manager, stego_file_path, password, carrier_type, is_fallback=False)
+            extraction_result = _try_extraction_with_manager(manager, stego_file_path, password, carrier_type, is_fallback=False, extraction_context=extraction_context)
             print(f"[EXTRACT DEBUG] Primary extraction result: {extraction_result is not None}")
             
             # CRITICAL FIX: Check for actual success, not just non-None results
@@ -4209,7 +4331,7 @@ async def process_extract_operation(
                 fallback_manager = get_steganography_manager(fallback_type, password)
                 
                 if fallback_manager:
-                    fallback_result = _try_extraction_with_manager(fallback_manager, stego_file_path, password, fallback_type, is_fallback=True)
+                    fallback_result = _try_extraction_with_manager(fallback_manager, stego_file_path, password, fallback_type, is_fallback=True, extraction_context=extraction_context)
                     
                     # Check for actual success in fallback result
                     is_fallback_successful = False
@@ -4361,6 +4483,15 @@ async def process_extract_operation(
                 # Process as regular dict-based extraction
                 extracted_data = extraction_result.get('extracted_data', '')
                 original_filename = extraction_result.get('filename', 'extracted_data.bin')  # Default filename if missing
+                
+                # CRITICAL FIX: Check for binary_content field for actual file data
+                if 'binary_content' in extraction_result and extraction_result['binary_content']:
+                    print(f"[DICT DEBUG] 🎯 Found binary_content field - using actual binary data!")
+                    actual_binary_data = extraction_result['binary_content']
+                    print(f"[DICT DEBUG] binary_content size: {len(actual_binary_data)} bytes")
+                    print(f"[DICT DEBUG] extracted_data (text display): {extracted_data}")
+                    # Use the actual binary data for file operations
+                    extracted_data = actual_binary_data
                 
                 print(f"[DICT DEBUG] extracted_data type: {type(extracted_data)}")
                 print(f"[DICT DEBUG] original_filename: {original_filename}")
@@ -4641,11 +4772,12 @@ async def process_extract_operation(
                     text_content = extracted_data
                     content_type = "text/plain"
                 elif isinstance(extracted_data, bytes):
-                    # CRITICAL FIX: Check if this is copyright data from video extraction
+                    # CRITICAL FIX: Check if this is copyright data from video extraction (only for copyright context)
                     is_copyright_data = False
                     clean_copyright_text = None
                     
-                    if _is_likely_text_content(extracted_data):
+                    # Only apply copyright detection logic for copyright extractions
+                    if extraction_context == "copyright" and _is_likely_text_content(extracted_data):
                         try:
                             decoded_text = extracted_data.decode('utf-8')
                             
@@ -4744,6 +4876,14 @@ async def process_extract_operation(
                         except UnicodeDecodeError:
                             pass  # Not text data, continue with normal processing
                     
+                    # DISABLED: Automatic forensic container extraction in General page
+                    # This was causing text messages to be misidentified as forensic containers
+                    # and extracting images instead of the intended text content
+                    forensic_file_extracted = False
+                    # if extraction_context == "general" and _is_likely_text_content(extracted_data):
+                    #     print(f"[GENERAL FIX] � Forensic auto-extraction disabled to preserve text content")
+                    #     # Logic disabled - users should use forensic page for forensic extraction
+                    
                     if is_copyright_data and clean_copyright_text:
                         # Save only the clean copyright text, not the raw binary data
                         print(f"[COPYRIGHT FIX] 💾 Saving clean copyright text ({len(clean_copyright_text)} chars) instead of raw binary ({len(extracted_data)} bytes)")
@@ -4751,11 +4891,42 @@ async def process_extract_operation(
                             f.write(clean_copyright_text)
                         text_content = clean_copyright_text
                         content_type = "text/plain"
-                    else:
-                        # Normal binary data processing
+                    elif not forensic_file_extracted:
+                        # Normal binary data processing (only if we didn't already save the forensic file)
                         with open(output_path, 'wb') as f:
                             f.write(extracted_data)
                         
+                        if _is_likely_text_content(extracted_data):
+                            try:
+                                text_content = extracted_data.decode('utf-8')
+                                content_type = "text/plain"
+                            except UnicodeDecodeError:
+                                # FRONTEND FIX: Provide more user-friendly binary file information
+                                file_ext = original_filename.lower().split('.')[-1] if '.' in original_filename else ''
+                                if file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp']:
+                                    text_content = f"✅ Image file extracted successfully: {original_filename}\n📁 File size: {len(extracted_data)} bytes\n⬇️ Click download to view the image"
+                                elif file_ext in ['pdf']:
+                                    text_content = f"✅ PDF document extracted successfully: {original_filename}\n📁 File size: {len(extracted_data)} bytes\n⬇️ Click download to view the PDF"
+                                elif file_ext in ['mp4', 'avi', 'mov']:
+                                    text_content = f"✅ Video file extracted successfully: {original_filename}\n📁 File size: {len(extracted_data)} bytes\n⬇️ Click download to view the video"
+                                else:
+                                    text_content = f"✅ Binary file extracted successfully: {original_filename}\n📁 File size: {len(extracted_data)} bytes\n⬇️ Click download to access the file"
+                                content_type = "application/octet-stream"
+                        else:
+                            # FRONTEND FIX: Provide more user-friendly binary file information  
+                            file_ext = original_filename.lower().split('.')[-1] if '.' in original_filename else ''
+                            if file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp']:
+                                text_content = f"✅ Image file extracted successfully: {original_filename}\n📁 File size: {len(extracted_data)} bytes\n⬇️ Click download to view the image"
+                            elif file_ext in ['pdf']:
+                                text_content = f"✅ PDF document extracted successfully: {original_filename}\n📁 File size: {len(extracted_data)} bytes\n⬇️ Click download to view the PDF"
+                            elif file_ext in ['mp4', 'avi', 'mov']:
+                                text_content = f"✅ Video file extracted successfully: {original_filename}\n📁 File size: {len(extracted_data)} bytes\n⬇️ Click download to view the video"
+                            else:
+                                text_content = f"✅ Binary file extracted successfully: {original_filename}\n📁 File size: {len(extracted_data)} bytes\n⬇️ Click download to access the file"
+                            content_type = "application/octet-stream"
+                    
+                    # Handle content detection for forensic extracted files
+                    if forensic_file_extracted:
                         if _is_likely_text_content(extracted_data):
                             try:
                                 text_content = extracted_data.decode('utf-8')
@@ -4786,6 +4957,7 @@ async def process_extract_operation(
                     "data_type": "text" if "text" in content_type else "binary",
                     "preview": text_content[:200] if len(str(text_content)) > 200 else text_content,
                     "text_content": text_content,
+                    "extracted_data": text_content,  # CRITICAL FIX: Add extracted_data field for frontend
                     "original_filename": original_filename,
                     "download_url": f"/api/operations/{operation_id}/download"
                 }
@@ -4810,6 +4982,11 @@ async def process_extract_operation(
             extracted_data, original_filename = extraction_result
             print(f"[DEBUG EXTRACT] Tuple unpacked - data type: {type(extracted_data)}, filename: {repr(original_filename)}")
             print(f"🔥🔥🔥 TUPLE DATA SIZE: {len(extracted_data) if hasattr(extracted_data, '__len__') else 'NO LENGTH'} 🔥🔥🔥")
+            
+            # CRITICAL FIX: Check for None data from failed extraction
+            if extracted_data is None:
+                print(f"[EXTRACT ERROR] ❌ Extraction returned None - no data found")
+                raise Exception("No hidden data found in this file. Please check your password or ensure the file contains embedded data.")
             
             # DEBUGGING: Write to debug file about tuple processing 
             with open("debug_extraction.log", "a", encoding="utf-8") as debug_f:
@@ -4999,6 +5176,7 @@ async def process_extract_operation(
                                         "data_type": data_type,
                                         "preview": preview,
                                         "text_content": text_content,
+                                        "extracted_data": text_content,  # CRITICAL FIX: Add extracted_data field for frontend
                                         "original_filename": layer_filename,
                                         "download_url": f"/api/operations/{operation_id}/download",
                                         # Single layer markers
@@ -5070,11 +5248,12 @@ async def process_extract_operation(
                     data_type = "text"
                     content_type = "text/plain"
                 elif isinstance(extracted_data, bytes):
-                    # CRITICAL FIX: Check if this is copyright data from video extraction
+                    # CRITICAL FIX: Check if this is copyright data from video extraction (only for copyright context)
                     is_copyright_data = False
                     clean_copyright_text = None
                     
-                    if _is_likely_text_content(extracted_data):
+                    # Only apply copyright detection logic for copyright extractions
+                    if extraction_context == "copyright" and _is_likely_text_content(extracted_data):
                         try:
                             decoded_text = extracted_data.decode('utf-8')
                             
@@ -5106,6 +5285,14 @@ async def process_extract_operation(
                         except UnicodeDecodeError:
                             pass  # Not text data, continue with normal processing
                     
+                    # DISABLED: Automatic forensic container extraction in General page (tuple path)
+                    # This was causing text messages to be misidentified as forensic containers
+                    # and extracting images instead of the intended text content
+                    forensic_file_extracted = False
+                    # if extraction_context == "general" and _is_likely_text_content(extracted_data):
+                    #     print(f"[GENERAL FIX] � Forensic auto-extraction disabled to preserve text content (tuple path)")
+                    #     # Logic disabled - users should use forensic page for forensic extraction
+                    
                     if is_copyright_data and clean_copyright_text:
                         # Save only the clean copyright text, not the raw binary data
                         print(f"[COPYRIGHT FIX] 💾 Saving clean copyright text ({len(clean_copyright_text)} chars) instead of raw binary ({len(extracted_data)} bytes) (tuple path)")
@@ -5115,8 +5302,8 @@ async def process_extract_operation(
                         preview = clean_copyright_text[:200]
                         data_type = "text"
                         content_type = "text/plain"
-                    else:
-                        # Normal binary data processing
+                    elif not forensic_file_extracted:
+                        # Normal binary data processing (only if we didn't already save the forensic file)
                         with open(output_path, 'wb') as f:
                             f.write(extracted_data)
                         
@@ -5183,6 +5370,7 @@ async def process_extract_operation(
                     "data_type": data_type,
                     "preview": preview,
                     "text_content": text_content,  # Frontend expects this field - NEVER None
+                    "extracted_data": text_content,  # CRITICAL FIX: Add extracted_data field for frontend
                     "original_filename": original_filename,
                     "download_url": f"/api/operations/{operation_id}/download"  # Frontend expects this field
                 }
@@ -5249,6 +5437,36 @@ async def process_extract_operation(
                 # Single layer from multi-layer capable module (legacy path)
                 print(f"[MULTI-LAYER] Single layer extraction from multi-layer file (legacy)")
                 extracted_data = extraction_result.get('extracted_data', '')
+                
+                # Check if extraction_context is 'general' and handle forensic containers
+                forensic_file_extracted = False
+                if extraction_context == "general" and isinstance(extracted_data, str):
+                    try:
+                        parsed_data = json.loads(extracted_data)
+                        if (isinstance(parsed_data, dict) and 
+                            parsed_data.get('type') == 'forensic_evidence' and
+                            'file_data' in parsed_data):
+                            print(f"[FORENSIC] Detected forensic container in general context")
+                            
+                            # Extract the actual file data
+                            file_data_b64 = parsed_data['file_data']
+                            actual_file_data = base64.b64decode(file_data_b64)
+                            original_filename = parsed_data.get('original_filename', 'extracted_file.bin')
+                            
+                            # Save the actual extracted file
+                            safe_filename = sanitize_filename(original_filename)
+                            final_output_path = OUTPUT_DIR / safe_filename
+                            
+                            with open(final_output_path, 'wb') as f:
+                                f.write(actual_file_data)
+                            
+                            # Update extracted_data to the actual file content for processing
+                            extracted_data = actual_file_data
+                            forensic_file_extracted = True
+                            print(f"[FORENSIC] Extracted actual file: {original_filename}")
+                    except (json.JSONDecodeError, KeyError, ValueError) as e:
+                        print(f"[FORENSIC] Not a valid forensic container or extraction failed: {e}")
+                        # Continue with normal processing
                 # Detect proper filename from content if not provided
                 original_filename = extraction_result.get('filename')
                 if not original_filename:
@@ -5257,8 +5475,8 @@ async def process_extract_operation(
                 
                 if output_path and os.path.exists(output_path):
                     final_output_path = output_path
-                else:
-                    # Fallback: save the extracted data
+                elif not forensic_file_extracted:
+                    # Fallback: save the extracted data (skip if forensic file already extracted)
                     safe_filename = sanitize_filename(original_filename)
                     final_output_path = OUTPUT_DIR / safe_filename
                     
@@ -5273,7 +5491,50 @@ async def process_extract_operation(
                 processing_time = time.time() - start_time
                 
                 # Determine content type and preview
-                if isinstance(extracted_data, str):
+                if forensic_file_extracted:
+                    # For forensic files, determine type from actual file content
+                    try:
+                        # Try to decode as text first
+                        if isinstance(extracted_data, bytes):
+                            try:
+                                text_decoded = extracted_data.decode('utf-8')
+                                text_content = text_decoded
+                                preview = text_decoded[:200]
+                                data_type = "text"
+                                content_type = "text/plain"
+                            except UnicodeDecodeError:
+                                # Clearly binary content
+                                text_content = f"Binary file: {original_filename} ({len(extracted_data)} bytes)"
+                                preview = f"Binary file ({len(extracted_data)} bytes)"
+                                data_type = "binary"
+                                
+                                # Try to determine specific content type from filename
+                                file_ext = original_filename.lower().split('.')[-1] if '.' in original_filename else ''
+                                content_type_map = {
+                                    'pdf': 'application/pdf',
+                                    'png': 'image/png',
+                                    'jpg': 'image/jpeg',
+                                    'jpeg': 'image/jpeg',
+                                    'mp4': 'video/mp4',
+                                    'avi': 'video/x-msvideo',
+                                    'wav': 'audio/wav',
+                                    'mp3': 'audio/mpeg',
+                                    'txt': 'text/plain'
+                                }
+                                content_type = content_type_map.get(file_ext, 'application/octet-stream')
+                        else:
+                            # String data
+                            text_content = extracted_data
+                            preview = extracted_data[:200]
+                            data_type = "text"
+                            content_type = "text/plain"
+                    except Exception as e:
+                        print(f"[FORENSIC] Error determining content type: {e}")
+                        text_content = f"Binary file: {original_filename}"
+                        preview = f"Binary file"
+                        data_type = "binary"
+                        content_type = "application/octet-stream"
+                elif isinstance(extracted_data, str):
                     preview = extracted_data[:200]
                     data_type = "text"
                     text_content = extracted_data
@@ -5383,11 +5644,12 @@ async def process_extract_operation(
                 data_type = "text"
                 content_type = "text/plain"
             elif isinstance(extracted_data, bytes):
-                # CRITICAL FIX: Check if this is copyright data from video extraction
+                # CRITICAL FIX: Check if this is copyright data from video extraction (only for copyright context)
                 is_copyright_data = False
                 clean_copyright_text = None
                 
-                if _is_likely_text_content(extracted_data):
+                # Only apply copyright detection logic for copyright extractions
+                if extraction_context == "copyright" and _is_likely_text_content(extracted_data):
                     try:
                         decoded_text = extracted_data.decode('utf-8')
                         

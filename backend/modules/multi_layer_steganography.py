@@ -18,6 +18,24 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 
+def _is_likely_text_content(data):
+    """Check if data is likely to be text content that can be safely decoded"""
+    if not data:
+        return False
+    
+    try:
+        # Try to decode a sample to see if it's text
+        sample = data[:min(1000, len(data))]
+        decoded = sample.decode('utf-8', errors='strict')
+        
+        # Check if it contains mostly printable characters
+        printable_chars = sum(1 for c in decoded if c.isprintable() or c.isspace())
+        ratio = printable_chars / len(decoded) if decoded else 0
+        
+        return ratio > 0.8  # 80% printable characters
+    except (UnicodeDecodeError, UnicodeError):
+        return False
+
 def detect_filename_from_content(data):
     """Detect appropriate filename and extension based on file content"""
     if not data:
@@ -388,11 +406,23 @@ class MultiLayerSteganography:
                     f.write(layer['content'])
                 layer['saved_to'] = output_path
             
-            # Try to decode as text for display
+            # CRITICAL FIX: Return the actual binary content for file extraction
+            # Don't try to decode binary files as text - preserve the original binary data
+            content_data = layer['content']
+            
+            # Only convert to text if it's actually text content
             try:
-                text_content = layer['content'].decode('utf-8')
+                # Check if it's likely text content by trying to decode a small sample
+                if len(content_data) > 0 and _is_likely_text_content(content_data):
+                    text_content = content_data.decode('utf-8')
+                    print(f"[MULTI-LAYER] Extracted text content: {len(text_content)} characters")
+                else:
+                    # For binary files, return the binary content directly for processing
+                    text_content = f"[Binary file: {layer['filename']}]"
+                    print(f"[MULTI-LAYER] Extracted binary file: {len(content_data)} bytes")
             except:
                 text_content = f"[Binary file: {layer['filename']}]"
+                print(f"[MULTI-LAYER] Extracted binary file (decode failed): {len(content_data)} bytes")
             
             return {
                 'success': True,
@@ -401,7 +431,8 @@ class MultiLayerSteganography:
                 'filename': layer['filename'],
                 'layer_number': layer['layer_number'],
                 'total_layers_found': len(existing_layers),
-                'saved_to': layer.get('saved_to')
+                'saved_to': layer.get('saved_to'),
+                'binary_content': content_data  # CRITICAL: Include the actual binary data
             }
         
         # Multiple layers - create zip file

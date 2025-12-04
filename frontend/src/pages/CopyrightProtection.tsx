@@ -895,6 +895,7 @@ export default function CopyrightProtection() {
       formData.append('stego_file', extractFile);  // Backend expects 'stego_file', not 'carrier_file'
       formData.append('password', password);
       formData.append('output_format', 'auto');
+      formData.append('extraction_context', 'copyright');  // Identify this as copyright extraction
 
       if (currentUser?.id) {
         formData.append('user_id', currentUser.id);
