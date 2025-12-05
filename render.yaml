@@ -33,3 +33,5 @@ services:
       #   sync: false  # Set in Render dashboard (optional)
       # - key: HF_TOKEN
       #   sync: false  # Set in Render dashboard (optional)
+      # - key: FRONTEND_URL
+      #   sync: false  # Set to your Vercel URL in Render dashboard

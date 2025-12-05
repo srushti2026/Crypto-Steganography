@@ -36,7 +36,7 @@ import {
 const getApiUrl = () => {
   // Check if we're in production (Vercel deployment)
   if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
-    return 'https://veilforge.onrender.com';
+    return 'https://crypto-steganography-1.onrender.com';
   }
   
   // Try to get environment variable
