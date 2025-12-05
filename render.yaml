@@ -3,8 +3,9 @@ services:
     name: crypto-steganography-backend
     env: python
     runtime: python-3.11
+    rootDir: Backend
     buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
-    startCommand: "python -m uvicorn Backend.app:app --host 0.0.0.0 --port $PORT"
+    startCommand: "uvicorn app:app --host 0.0.0.0 --port $PORT"
     plan: starter
     healthCheckPath: /health
     autoDeploy: true
