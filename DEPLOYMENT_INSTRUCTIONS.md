@@ -1,8 +1,13 @@
-# 🚀 VeilForge Deployment Guide
+# 🚀 Crypto-Steganography Deployment Guide
 
-## 📁 Project Structure (Deployment Ready)
+## 3. Configure deployment:
+   - **Name**: `crypto-steganography-backend`
+   - **Environment**: `Python`
+   - **Build Command**: `pip install --upgrade pip && pip install -r Backend/requirements.txt`
+   - **Start Command**: `cd Backend && uvicorn app:app --host 0.0.0.0 --port $PORT`
+   - **Instance Type**: `Starter` (free tier)ject Structure (Deployment Ready)
 ```
-VeilForge/
+Crypto-Steganography/
 ├── Frontend/          # React app for Vercel deployment
 ├── Backend/           # FastAPI server for Render deployment  
 ├── .gitignore         # Excludes "Not used/" and sensitive files
@@ -40,7 +45,7 @@ VeilForge/
 ## 🏗️ **STEP 2: Backend Deployment (Render)**
 
 ### 2.1 Prepare Repository
-1. Ensure your code is pushed to GitHub
+1. Ensure your code is pushed to GitHub: `https://github.com/srushti2026/Crypto-Steganography`
 2. Repository should be public or Render should have access
 
 ### 2.2 Deploy to Render
@@ -78,7 +83,7 @@ HF_TOKEN=your-hugging-face-token
 ### 2.4 Deploy and Test
 1. Click **"Deploy"** 
 2. Wait for build completion (5-10 minutes)
-3. Your backend will be available at: `https://veilforge-backend.onrender.com`
+3. Your backend will be available at: `https://crypto-steganography-backend.onrender.com`
 4. Test health endpoint: `https://your-app.onrender.com/health`
 
 ---

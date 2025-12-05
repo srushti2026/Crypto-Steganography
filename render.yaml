@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: veilforge-backend
+    name: crypto-steganography-backend
     env: python
     runtime: python-3.11
     buildCommand: "pip install --upgrade pip && pip install -r Backend/requirements.txt"
