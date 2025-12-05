@@ -7,6 +7,9 @@
 # CRITICAL SECURITY - NEVER COMMIT THESE FILES
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+# Project Structure - Excluded Directories
+Not used/
+
 # Environment Variables & Secrets (NEVER COMMIT!)
 .env
 .env.local
@@ -162,6 +165,7 @@ cache/
 tmp/
 build/
 dist/
+dist-ssr/
 .next/
 .nuxt/
 .vuepress/dist/
