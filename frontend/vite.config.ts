@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
     // Ensure proper environment variable replacement
     '__VITE_API_URL__': JSON.stringify(
       mode === 'production' 
-        ? 'https://crypto-steganography-backend.onrender.com' 
+        ? 'https://crypto-steganography-1.onrender.com' 
         : 'http://localhost:8000'
     )
   },

@@ -7,7 +7,7 @@
 const getApiBaseUrl = (): string => {
   // Check if we're in production (Vercel)
   if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
-    return 'https://crypto-steganography-backend.onrender.com';
+    return 'https://crypto-steganography-1.onrender.com';
   }
   
   // Try to get environment variable safely
@@ -22,7 +22,7 @@ const getApiBaseUrl = (): string => {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     if (hostname.includes('vercel.app') || hostname.includes('netlify.app')) {
-      return 'https://crypto-steganography-backend.onrender.com';
+      return 'https://crypto-steganography-1.onrender.com';
     }
   }
   
