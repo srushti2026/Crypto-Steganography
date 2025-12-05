@@ -1,0 +1,6 @@
+# VeilForge Backend Requirements
+# This file is for Render deployment - main requirements are in Backend/requirements.txt
+# Render will use the Backend/requirements.txt file as specified in render.yaml
+
+# If you need to install from root, uncomment and sync with Backend/requirements.txt:
+# -r Backend/requirements.txt

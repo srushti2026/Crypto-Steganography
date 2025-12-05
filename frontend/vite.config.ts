@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
     // Ensure proper environment variable replacement
     '__VITE_API_URL__': JSON.stringify(
       mode === 'production' 
-        ? 'https://veilforge.onrender.com' 
+        ? 'https://veilforge-backend.onrender.com' 
         : 'http://localhost:8000'
     )
   },

@@ -2,31 +2,36 @@ services:
   - type: web
     name: veilforge-backend
     env: python
-    buildCommand: "pip install -r Backend/requirements.txt"
-    startCommand: "cd Backend && python app.py"
+    runtime: python-3.11
+    buildCommand: "pip install --upgrade pip && pip install -r Backend/requirements.txt"
+    startCommand: "cd Backend && uvicorn app:app --host 0.0.0.0 --port $PORT"
     plan: starter
     healthCheckPath: /health
     autoDeploy: true
-    # Increased timeout for heavy operations
-    healthCheckGracePeriod: 30s
+    # Increased timeouts for steganography operations
+    healthCheckGracePeriod: 60s
     healthCheckInterval: 30s
-    # Keep the service warm
-    preDeployCommand: echo "Starting VeilForge backend deployment"
+    # Environment setup
+    preDeployCommand: "echo 'Starting VeilForge backend deployment' && cd Backend && python -c 'print(\"Backend structure verified\")'"
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
       - key: PORT
         value: 10000
       - key: RENDER
         value: "true"
-      # Add your environment variables here:
-      # - key: HF_TOKEN
-      #   sync: false
+      - key: PYTHONPATH
+        value: "/opt/render/project/src/Backend"
+      - key: ENVIRONMENT
+        value: "production"
+      # REQUIRED: Add these environment variables in Render dashboard:
       # - key: SUPABASE_URL
-      #   sync: false
-      # - key: SUPABASE_ANON_KEY
-      #   sync: false
+      #   sync: false  # Set in Render dashboard
+      # - key: SUPABASE_ANON_KEY  
+      #   sync: false  # Set in Render dashboard
+      # - key: SUPABASE_SERVICE_KEY
+      #   sync: false  # Set in Render dashboard (optional)
       # - key: EMAIL_USER
-      #   sync: false
+      #   sync: false  # Set in Render dashboard (optional)
       # - key: EMAIL_PASSWORD
-      #   sync: false
+      #   sync: false  # Set in Render dashboard (optional)
+      # - key: HF_TOKEN
+      #   sync: false  # Set in Render dashboard (optional)
