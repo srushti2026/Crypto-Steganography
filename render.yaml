@@ -4,15 +4,13 @@ services:
     env: python
     runtime: python-3.11
     buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
-    startCommand: "cd Backend && uvicorn app:app --host 0.0.0.0 --port $PORT"
+    startCommand: "cd Backend && python -m uvicorn app:app --host 0.0.0.0 --port $PORT"
     plan: starter
     healthCheckPath: /health
     autoDeploy: true
     # Increased timeouts for steganography operations
     healthCheckGracePeriod: 60s
     healthCheckInterval: 30s
-    # Environment setup
-    preDeployCommand: "echo 'Starting VeilForge backend deployment' && cd Backend && python -c 'print(\"Backend structure verified\")'"
     envVars:
       - key: PORT
         value: 10000
