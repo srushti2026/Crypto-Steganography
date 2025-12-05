@@ -250,7 +250,7 @@ allowed_origins = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:8080",
     "https://veilforge.vercel.app",  # Your production Vercel URL
-    "https://veilforge-rctejq0kc-srushti-csd-3993s-projects.vercel.app",  # Your deployment URL
+    "https://crypto-steganography-bf367f3pz-srushti-csd-3993s-projects.vercel.app",  # Current deployment URL
 ]
 
 # Add production frontend URL from environment variable

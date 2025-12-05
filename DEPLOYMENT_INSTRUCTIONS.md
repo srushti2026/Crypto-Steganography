@@ -83,8 +83,8 @@ HF_TOKEN=your-hugging-face-token
 ### 2.4 Deploy and Test
 1. Click **"Deploy"** 
 2. Wait for build completion (5-10 minutes)
-3. Your backend will be available at: `https://crypto-steganography-backend.onrender.com`
-4. Test health endpoint: `https://your-app.onrender.com/health`
+3. Your backend will be available at: `https://crypto-steganography-1.onrender.com`
+4. Test health endpoint: `https://crypto-steganography-1.onrender.com/health`
 
 ---
 
