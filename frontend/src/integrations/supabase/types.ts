@@ -164,30 +164,63 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          bio: string | null
           created_at: string
+          display_name_publicly: string | null
           email: string | null
+          first_name: string | null
           full_name: string | null
           id: string
+          last_name: string | null
+          last_sign_in_at: string | null
+          nickname: string | null
+          phone: string | null
+          telegram: string | null
           updated_at: string
           user_id: string
+          username: string | null
+          website: string | null
+          whatsapp: string | null
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          display_name_publicly?: string | null
           email?: string | null
+          first_name?: string | null
           full_name?: string | null
           id?: string
+          last_name?: string | null
+          last_sign_in_at?: string | null
+          nickname?: string | null
+          phone?: string | null
+          telegram?: string | null
           updated_at?: string
           user_id: string
+          username?: string | null
+          website?: string | null
+          whatsapp?: string | null
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          display_name_publicly?: string | null
           email?: string | null
+          first_name?: string | null
           full_name?: string | null
           id?: string
+          last_name?: string | null
+          last_sign_in_at?: string | null
+          nickname?: string | null
+          phone?: string | null
+          telegram?: string | null
           updated_at?: string
           user_id?: string
+          username?: string | null
+          website?: string | null
+          whatsapp?: string | null
         }
         Relationships: []
       }

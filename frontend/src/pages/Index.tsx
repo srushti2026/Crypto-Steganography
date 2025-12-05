@@ -96,11 +96,6 @@ export default function Index() {
                 <p className="text-muted-foreground mb-8">
                   Whether you're protecting intellectual property, securing classified communications, or maintaining evidence chains, VeilForge provides strong security with uncompromised usability.
                 </p>
-                <Button asChild className="btn-primary">
-                  <Link to="/home">
-                    Explore Platform <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
               </div>
               
               <div className="relative animate-fade-in [animation-delay:300ms]">
@@ -214,14 +209,6 @@ export default function Index() {
               <p className="text-muted-foreground mb-8">
                 Join thousands of professionals who trust VeilForge for invisible data protection. Start your secure journey today.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button asChild size="lg" className="btn-primary">
-                  <Link to="/home">Get Started Free</Link>
-                </Button>
-                <Button asChild size="lg" variant="outline">
-                  <Link to="/contact">Contact Sales</Link>
-                </Button>
-              </div>
             </div>
           </div>
           

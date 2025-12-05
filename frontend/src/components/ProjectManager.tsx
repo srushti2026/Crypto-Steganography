@@ -10,6 +10,36 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Settings, FileText, Clock, Lock, Edit, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+// Helper function to parse project description (copied from Dashboard.tsx)
+const parseProjectDescription = (description: string | null) => {
+  if (!description) return { description: "", metadata: {} };
+  
+  // First, check if it's a JSON string
+  if (description.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(description);
+      
+      if (parsed.description !== undefined) {
+        // Standard project format with metadata - extract the inner description
+        return {
+          description: parsed.description || "",
+          metadata: parsed.metadata || {}
+        };
+      } else {
+        // JSON object without description field - show as plain text
+        return { description: description, metadata: {} };
+      }
+    } catch (e) {
+      console.warn('Failed to parse project description JSON:', e);
+      // If JSON parsing fails, return as plain text
+      return { description: description, metadata: {} };
+    }
+  } else {
+    // Plain text description
+    return { description: description, metadata: {} };
+  }
+};
+
 interface Project {
   id: string;
   name: string;
@@ -70,7 +100,10 @@ export default function ProjectManager({ onProjectSelect, currentProject, projec
   const handleEditProject = (project: Project, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
     setEditingProject(project);
-    setEditForm({ name: project.name, description: project.description || '' });
+    
+    // Parse the description to get the clean text for editing
+    const { description } = parseProjectDescription(project.description);
+    setEditForm({ name: project.name, description: description || '' });
     setIsEditModalOpen(true);
   };
 
@@ -78,11 +111,20 @@ export default function ProjectManager({ onProjectSelect, currentProject, projec
     if (!editingProject) return;
 
     try {
+      // Parse existing description to preserve metadata
+      const { metadata } = parseProjectDescription(editingProject.description);
+      
+      // Save description in consistent JSON format
+      const descriptionToSave = JSON.stringify({
+        description: editForm.description.trim() || null,
+        metadata: metadata
+      });
+
       const { data, error } = await supabase
         .from('projects')
         .update({
           name: editForm.name,
-          description: editForm.description,
+          description: descriptionToSave,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingProject.id)
@@ -181,7 +223,11 @@ export default function ProjectManager({ onProjectSelect, currentProject, projec
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {projects.map((project) => (
+              {projects.map((project) => {
+                // Parse description to show clean text
+                const { description } = parseProjectDescription(project.description);
+                
+                return (
                 <Card 
                   key={project.id} 
                   className={`cursor-pointer transition-all hover:shadow-md ${
@@ -204,9 +250,9 @@ export default function ProjectManager({ onProjectSelect, currentProject, projec
                         </Button>
                       </div>
                     </div>
-                    {project.description && (
+                    {description && (
                       <CardDescription className="text-sm line-clamp-2">
-                        {project.description}
+                        {description}
                       </CardDescription>
                     )}
                   </CardHeader>
@@ -219,7 +265,8 @@ export default function ProjectManager({ onProjectSelect, currentProject, projec
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

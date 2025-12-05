@@ -51,8 +51,8 @@ export default function Profile() {
     telegram: "",
     whatsapp: "",
     bio: "",
-    role: "subscriber",
     display_name_publicly: "",
+    full_name: "",
     avatar_url: ""
   });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -106,8 +106,8 @@ export default function Profile() {
           telegram: data.telegram || "",
           whatsapp: data.whatsapp || "",
           bio: data.bio || "",
-          role: data.role || "subscriber",
           display_name_publicly: data.display_name_publicly || "",
+          full_name: data.full_name || "",
           avatar_url: data.avatar_url || ""
         });
         setAvatarPreview(data.avatar_url || "");
@@ -198,7 +198,7 @@ export default function Profile() {
         avatarUrl = publicUrl;
       }
 
-      // Update both profiles and users tables
+      // Update profiles table with all profile fields
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
@@ -212,8 +212,8 @@ export default function Profile() {
           telegram: profile.telegram,
           whatsapp: profile.whatsapp,
           bio: profile.bio,
-          role: profile.role,
           display_name_publicly: profile.display_name_publicly,
+          full_name: profile.full_name,
           avatar_url: avatarUrl,
           updated_at: new Date().toISOString()
         })
@@ -323,7 +323,7 @@ export default function Profile() {
                     />
                   </div>
                   <CardTitle className="text-lg">
-                    {profile.display_name_publicly || profile.first_name || "User"}
+                    {profile.display_name_publicly || profile.first_name || profile.full_name || "User"}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -422,23 +422,6 @@ export default function Profile() {
                                 onChange={(e) => setProfile({ ...profile, nickname: e.target.value })}
                                 disabled={!isEditing}
                               />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="role">Role</Label>
-                              <Select
-                                value={profile.role}
-                                onValueChange={(value) => setProfile({ ...profile, role: value })}
-                                disabled={!isEditing}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="subscriber">Subscriber</SelectItem>
-                                  <SelectItem value="premium">Premium</SelectItem>
-                                  <SelectItem value="admin">Admin</SelectItem>
-                                </SelectContent>
-                              </Select>
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="last_name">Last Name</Label>
