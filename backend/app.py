@@ -1593,10 +1593,23 @@ async def generate_image_from_text(request: TextToImageRequest):
 # STEGANOGRAPHY ENDPOINTS
 # ============================================================================
 
+# Handle OPTIONS preflight requests for supported formats endpoint
+@app.options("/api/supported-formats")
+async def supported_formats_options():
+    """Handle preflight CORS request for supported formats endpoint"""
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
 @app.get("/api/supported-formats")
 async def get_supported_formats():
     """Get supported file formats for each steganography type"""
-    return {
+    formats_data = {
         "image": {
             "carrier_formats": ["png", "jpg", "jpeg", "bmp", "tiff", "gif"],
             "content_formats": ["text", "file"],
@@ -1618,6 +1631,15 @@ async def get_supported_formats():
             "max_size_mb": 0  # No limit
         }
     }
+    
+    return JSONResponse(
+        content=formats_data,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*"
+        }
+    )
 
 @app.get("/api/generate-password")
 async def generate_password(length: int = 16, include_symbols: bool = True):
