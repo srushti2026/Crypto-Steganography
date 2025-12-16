@@ -297,19 +297,25 @@ app.add_middleware(
     max_age=86400,  # Cache preflight for 24 hours
 )
 
-# Add CORS debugging middleware
-@app.middleware("http")
-async def cors_debug_middleware(request, call_next):
+# Add comprehensive CORS middleware as a fallback
+@app.middleware("http") 
+async def cors_fallback_middleware(request, call_next):
     # Log request details for debugging
-    print(f"🌐 CORS Debug - Method: {request.method}, Origin: {request.headers.get('origin', 'None')}")
+    origin = request.headers.get('origin', 'None')
+    print(f"🌐 CORS Debug - Method: {request.method}, Origin: {origin}")
     print(f"🌐 CORS Debug - URL: {request.url}")
-    print(f"🌐 CORS Debug - Headers: {dict(request.headers)}")
     
     response = await call_next(request)
     
-    # Log response headers
+    # Always add CORS headers to every response as a fallback
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Expose-Headers"] = "*"
+    
+    # Log response details
     print(f"🌐 CORS Debug - Response status: {response.status_code}")
-    print(f"🌐 CORS Debug - Response headers: {dict(response.headers)}")
+    print(f"🌐 CORS Debug - CORS headers added: {response.headers.get('access-control-allow-origin')}")
     
     return response
 
@@ -1600,10 +1606,15 @@ async def embed_data(
                 if content_type == "text" and text_content:
                     content_size = len(text_content.encode('utf-8'))
                 elif content_type == "file" and content_file:
-                    await content_file.seek(0)  # Reset file pointer
-                    content_data = await content_file.read()
-                    content_size = len(content_data)
-                    await content_file.seek(0)  # Reset again for later use
+                    # Get the content file size from the uploaded file info
+                    if hasattr(content_file, 'size') and content_file.size:
+                        content_size = content_file.size
+                    else:
+                        # Fallback: read file to get size, then reset
+                        current_pos = content_file.file.tell()
+                        content_file.file.seek(0, 2)  # Seek to end
+                        content_size = content_file.file.tell()
+                        content_file.file.seek(current_pos)  # Reset to original position
                 
                 # Check if content fits in carrier
                 if content_size > capacity_bytes:
@@ -2372,6 +2383,15 @@ async def get_operation_status(operation_id: str):
         if current_time - job_start_time > 600:  # 10 minutes
             job["status"] = "failed"
             job["error"] = "Operation timed out after 10 minutes"
+            print(f"⏰ Operation {operation_id} marked as timed out after 10 minutes")
+            
+        # Check for stuck operations (processing for more than 5 minutes without update)
+        elif (job.get("status") == "processing" and 
+              current_time - job_start_time > 300 and
+              not job.get("last_update_time")):
+            job["status"] = "failed"  
+            job["error"] = "Operation appears to have crashed - no status updates received"
+            print(f"💥 Operation {operation_id} marked as crashed - no updates for 5+ minutes")
     
     except Exception as e:
         print(f"❌ Error in get_operation_status: {e}")
@@ -2412,12 +2432,22 @@ async def get_operation_status(operation_id: str):
         if isinstance(error, dict):
             error = str(error)
         
-        return StatusResponse(
-            status=job["status"],
-            progress=progress,
-            message=f"Processed {completed_files + failed_files}/{total_files} files",
-            error=error,
-            result=batch_result
+        # Create response with CORS headers
+        response_data = {
+            "status": job["status"],
+            "progress": progress,
+            "message": f"Processed {completed_files + failed_files}/{total_files} files",
+            "error": error,
+            "result": batch_result
+        }
+        
+        return JSONResponse(
+            content=response_data,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*"
+            }
         )
     else:
         # Handle regular operations
@@ -2426,12 +2456,22 @@ async def get_operation_status(operation_id: str):
         if isinstance(error, dict):
             error = str(error)
         
-        return StatusResponse(
-            status=job["status"],
-            progress=job.get("progress"),
-            message=job.get("message"),
-            error=error,
-            result=job.get("result")
+        # Create response with CORS headers
+        response_data = {
+            "status": job["status"],
+            "progress": job.get("progress"),
+            "message": job.get("message"),
+            "error": error,
+            "result": job.get("result")
+        }
+        
+        return JSONResponse(
+            content=response_data,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*"
+            }
         )
 
 # Handle OPTIONS preflight requests for operations download endpoint
@@ -2724,6 +2764,24 @@ def run_with_timeout(func, args, kwargs, timeout_seconds):
     except concurrent.futures.TimeoutError:
         raise Exception(f"Operation timed out after {timeout_seconds} seconds")
 
+def force_memory_cleanup():
+    """Force garbage collection and memory cleanup"""
+    try:
+        import gc
+        import psutil
+        import os
+        
+        # Force garbage collection
+        gc.collect()
+        
+        # Log memory usage
+        process = psutil.Process(os.getpid())
+        memory_mb = process.memory_info().rss / 1024 / 1024
+        print(f"💾 Memory usage after cleanup: {memory_mb:.1f} MB")
+        
+    except Exception as e:
+        print(f"⚠️  Memory cleanup failed: {e}")
+
 async def process_embed_operation(
     operation_id: str,
     carrier_file_path: str,
@@ -2740,10 +2798,14 @@ async def process_embed_operation(
     db_operation_id: Optional[str] = None,
     original_content_filename: Optional[str] = None
 ):
-    """Background task to process embedding operation"""
+    """Background task to process embedding operation with enhanced error handling and memory management"""
     
     import json
     start_time = time.time()
+    
+    # Set job start time for timeout tracking
+    if operation_id in active_jobs:
+        active_jobs[operation_id]["start_time"] = start_time
     
     print(f"[EMBED] Starting embedding operation {operation_id}")
     print(f"[EMBED] Carrier: {carrier_type}, Content: {content_type}")
@@ -3207,7 +3269,28 @@ async def process_embed_operation(
             
     except Exception as e:
         error_msg = translate_error_message(str(e), carrier_type)
+        
+        # Enhanced error logging for debugging
+        print(f"❌ [EMBED ERROR] Operation {operation_id} failed: {error_msg}")
+        print(f"❌ [EMBED ERROR] Original error: {str(e)}")
+        print(f"❌ [EMBED ERROR] Carrier type: {carrier_type}, Content type: {content_type}")
+        
+        # Force memory cleanup on error to prevent resource leaks
+        try:
+            force_memory_cleanup()
+        except Exception as cleanup_error:
+            print(f"⚠️  Memory cleanup failed on error: {cleanup_error}")
+        
         update_job_status(operation_id, "failed", error=error_msg)
+        
+        # Cleanup files on error
+        try:
+            if carrier_file_path and os.path.exists(carrier_file_path):
+                os.remove(carrier_file_path)
+            if content_file_path and os.path.exists(content_file_path):
+                os.remove(content_file_path)
+        except Exception as cleanup_error:
+            print(f"⚠️  File cleanup failed: {cleanup_error}")
         
         # Log failure in database with timeout protection
         if db and user_id and db_operation_id:
