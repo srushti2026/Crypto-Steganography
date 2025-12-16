@@ -144,16 +144,139 @@ except ImportError as e:
     print(f"[ERROR] Image steganography module not available: {e}")
     steganography_managers['image'] = None
 
-# Document Steganography - Use multi-layer steganography with backward compatibility  
+# Document Steganography - Use safe metadata-based approach to prevent timeouts
+class DocumentSteganographyWrapper:
+    """Wrapper for safe document steganography to match expected interface"""
+    
+    def __init__(self, password: str = None):
+        try:
+            from modules.safe_document_steganography import SafeDocumentSteganography
+            self.safe_stego = SafeDocumentSteganography(password)
+            print(f"[DOCUMENT] SafeDocumentSteganography initialized with password: {bool(password)}")
+        except ImportError as e:
+            print(f"[ERROR] Safe document steganography not available: {e}")
+            self.safe_stego = None
+    
+    def hide_data(self, carrier_path: str, content, output_path: str, password: str = None, is_file: bool = True, **kwargs):
+        """Hide data in document using safe metadata approach with timeout protection"""
+        if not self.safe_stego:
+            return {"success": False, "error": "Document steganography module not available"}
+        
+        try:
+            print(f"[DOCUMENT] Hiding {'file' if is_file else 'text'} in {carrier_path}")
+            
+            # Create temporary file for content if it's not already a file
+            content_path = None
+            if is_file and isinstance(content, (str, bytes)):
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False, mode='wb') as temp_f:
+                    if isinstance(content, str):
+                        temp_f.write(content.encode('utf-8'))
+                    else:
+                        temp_f.write(content)
+                    content_path = temp_f.name
+            elif is_file:
+                content_path = content
+            else:
+                # Text content - create temp file
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.txt') as temp_f:
+                    temp_f.write(str(content))
+                    content_path = temp_f.name
+            
+            # Set password if provided
+            if password:
+                self.safe_stego.password = password
+            
+            # Hide the content with timeout protection (documents should be fast)
+            def do_hide():
+                return self.safe_stego.hide_file_in_document(carrier_path, content_path, output_path)
+            
+            # Use shorter timeout for documents (30 seconds should be plenty for metadata operations)
+            import concurrent.futures
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(do_hide)
+                    result = future.result(timeout=30)  # 30 second timeout for documents
+            except concurrent.futures.TimeoutError:
+                result = {"success": False, "error": "Document processing timed out after 30 seconds"}
+            
+            # Cleanup temporary file if we created one
+            if content_path and content_path != content and os.path.exists(content_path):
+                try:
+                    os.remove(content_path)
+                except Exception as cleanup_error:
+                    print(f"[DOCUMENT] Cleanup warning: {cleanup_error}")
+            
+            print(f"[DOCUMENT] Hide result: {result.get('success', False)}")
+            return result
+            
+        except Exception as e:
+            print(f"[DOCUMENT] Hide error: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": f"Document processing failed: {str(e)}"}
+    
+    def extract_data(self, stego_path: str, password: str = None, **kwargs):
+        """Extract data from document using safe metadata approach with timeout protection"""
+        if not self.safe_stego:
+            return None
+        
+        try:
+            print(f"[DOCUMENT] Extracting from {stego_path}")
+            
+            # Set password if provided
+            if password:
+                self.safe_stego.password = password
+            
+            # Extract the content with timeout protection
+            def do_extract():
+                output_dir = os.path.dirname(stego_path)
+                return self.safe_stego.extract_file_from_document(stego_path, output_dir)
+            
+            # Use timeout for extraction too
+            import concurrent.futures
+            result_path = None
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(do_extract)
+                    result_path = future.result(timeout=20)  # 20 second timeout for extraction
+            except concurrent.futures.TimeoutError:
+                print(f"[DOCUMENT] Extraction timed out after 20 seconds")
+                return None
+            
+            if result_path and os.path.exists(result_path):
+                # Read the extracted file
+                with open(result_path, 'rb') as f:
+                    extracted_data = f.read()
+                
+                # Get the original filename
+                filename = os.path.basename(result_path)
+                
+                print(f"[DOCUMENT] Extracted {len(extracted_data)} bytes as {filename}")
+                
+                # Clean up extracted file
+                try:
+                    os.remove(result_path)
+                except Exception as cleanup_error:
+                    print(f"[DOCUMENT] Cleanup warning: {cleanup_error}")
+                
+                return (extracted_data, filename)
+            else:
+                print(f"[DOCUMENT] No data extracted or file not found")
+                return None
+                
+        except Exception as e:
+            print(f"[DOCUMENT] Extract error: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
 try:
-    try:
-        from .modules.multi_layer_steganography import UniversalFileSteganography
-    except ImportError:
-        from modules.multi_layer_steganography import UniversalFileSteganography
-    steganography_managers['document'] = UniversalFileSteganography
-    print("[OK] Multi-layer steganography module loaded for documents")
-except ImportError as e:
-    print(f"[ERROR] Document steganography module not available: {e}")
+    steganography_managers['document'] = DocumentSteganographyWrapper
+    print("[OK] Safe document steganography wrapper loaded for documents")
+except Exception as e:
+    print(f"[ERROR] Document steganography wrapper failed: {e}")
     steganography_managers['document'] = None
 
 # Audio Steganography - Use working module
@@ -1514,13 +1637,16 @@ async def generate_password(length: int = 16, include_symbols: bool = True):
 # Handle OPTIONS preflight requests for /api/embed
 @app.options("/api/embed")
 async def embed_options():
-    """Handle preflight CORS request for embed endpoint"""
+    """Handle preflight CORS request for embed endpoint with comprehensive headers"""
     return JSONResponse(
-        content={"message": "OK"},
+        content={"message": "OK", "endpoint": "embed", "methods": "POST, OPTIONS"},
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "POST, OPTIONS",
             "Access-Control-Allow-Headers": "*",
+            "Access-Control-Expose-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+            "Vary": "Origin",
         }
     )
 
@@ -1724,9 +1850,34 @@ async def embed_data(
         )
         
     except Exception as e:
+        error_msg = str(e)
+        print(f"❌ [EMBED ERROR] Operation {operation_id} failed: {error_msg}")
+        
+        # Handle timeout errors specifically
+        if "timed out" in error_msg.lower() or "timeout" in error_msg.lower():
+            error_msg = f"Operation timed out - the {carrier_type} file processing took too long. Please try with a smaller file or different format."
+            status_code = 408  # Request Timeout
+        else:
+            status_code = 500
+        
         if operation_id in active_jobs:
-            update_job_status(operation_id, "failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+            update_job_status(operation_id, "failed", error=error_msg)
+        
+        # Return JSON response with CORS headers instead of HTTPException for better error handling
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "success": False,
+                "operation_id": operation_id,
+                "message": "Embedding operation failed",
+                "error": error_msg
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "*"
+            }
+        )
 
 @app.post("/api/forensic-embed", response_model=OperationResponse)
 async def forensic_embed_data(
