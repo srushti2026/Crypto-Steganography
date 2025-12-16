@@ -72,13 +72,41 @@ if IS_PRODUCTION:
     gc.set_threshold(100, 10, 10)  # More aggressive garbage collection
     
     # Set stricter limits for file processing
-    MAX_FILE_SIZE_MB = 50  # Reduced from default for memory constraints
-    MAX_OPERATION_TIMEOUT = 300  # 5 minutes max per operation
+    MAX_FILE_SIZE_MB = 25  # Further reduced for memory constraints
+    MAX_OPERATION_TIMEOUT = 180  # 3 minutes max per operation
 else:
     MAX_FILE_SIZE_MB = 100
     MAX_OPERATION_TIMEOUT = 600  # 10 minutes for local development
 
 print(f"[CONFIG] Max file size: {MAX_FILE_SIZE_MB}MB, Max operation timeout: {MAX_OPERATION_TIMEOUT}s")
+
+# Memory monitoring function
+def force_memory_cleanup():
+    """Aggressive memory cleanup for production environment"""
+    if IS_PRODUCTION:
+        import gc
+        import psutil
+        import os
+        
+        # Get memory usage before cleanup
+        process = psutil.Process(os.getpid())
+        memory_before = process.memory_info().rss / 1024 / 1024  # MB
+        
+        # Force garbage collection
+        gc.collect()
+        gc.collect()  # Run twice to be thorough
+        
+        # Get memory usage after cleanup
+        memory_after = process.memory_info().rss / 1024 / 1024  # MB
+        freed = memory_before - memory_after
+        
+        print(f"[MEMORY] Before: {memory_before:.1f}MB, After: {memory_after:.1f}MB, Freed: {freed:.1f}MB")
+        
+        # If still using too much memory, warn
+        if memory_after > 400:  # 400MB threshold for Render starter plan
+            print(f"[WARNING] High memory usage: {memory_after:.1f}MB")
+            
+        return memory_after
 
 # Import steganography modules with fallbacks
 steganography_managers = {}
@@ -981,7 +1009,34 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint for deployment monitoring"""
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    health_data = {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    
+    # Add memory info in production
+    if IS_PRODUCTION:
+        try:
+            import psutil
+            import os
+            process = psutil.Process(os.getpid())
+            memory_mb = process.memory_info().rss / 1024 / 1024
+            health_data["memory_mb"] = round(memory_mb, 1)
+            health_data["memory_status"] = "normal" if memory_mb < 400 else "high"
+        except Exception:
+            pass
+    
+    return health_data
+
+@app.post("/cleanup-memory")
+async def cleanup_memory():
+    """Manually trigger memory cleanup - for emergencies"""
+    if IS_PRODUCTION:
+        memory_after = force_memory_cleanup()
+        return {
+            "status": "cleanup_completed",
+            "memory_mb": round(memory_after, 1),
+            "timestamp": datetime.now().isoformat()
+        }
+    else:
+        return {"status": "not_needed", "environment": "development"}
 
 # Add aliases for frontend compatibility (without /api prefix)
 @app.get("/supported-formats")
@@ -3070,9 +3125,8 @@ async def process_embed_operation(
             
         # Memory cleanup for production environment
         if IS_PRODUCTION:
-            import gc
-            gc.collect()
-            print(f"[EMBED] Memory cleanup completed for operation {operation_id}")
+            memory_after = force_memory_cleanup()
+            print(f"[EMBED] Memory cleanup completed for operation {operation_id}, Current usage: {memory_after:.1f}MB")
             
     except Exception as e:
         error_msg = translate_error_message(str(e), carrier_type)
