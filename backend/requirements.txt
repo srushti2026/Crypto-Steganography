@@ -44,6 +44,9 @@ python-dotenv>=1.0.0
 tqdm>=4.64.0
 colorlog>=6.6.0
 
+# System monitoring
+psutil>=5.9.0
+
 # Note: librosa removed for Vercel compatibility (large dependency)
 # Note: uvicorn not needed in Vercel serverless environment
 # Note: jinja2 and aiofiles not needed for API-only deployment
