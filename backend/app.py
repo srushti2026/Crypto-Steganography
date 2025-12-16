@@ -151,8 +151,9 @@ class DocumentSteganographyWrapper:
     def __init__(self, password: str = None):
         try:
             from modules.safe_document_steganography import SafeDocumentSteganography
-            self.safe_stego = SafeDocumentSteganography(password)
-            print(f"[DOCUMENT] SafeDocumentSteganography initialized with password: {bool(password)}")
+            # Initialize without password - we'll set it per operation
+            self.safe_stego = SafeDocumentSteganography(None)
+            print(f"[DOCUMENT] SafeDocumentSteganography initialized")
         except ImportError as e:
             print(f"[ERROR] Safe document steganography not available: {e}")
             self.safe_stego = None
@@ -164,6 +165,9 @@ class DocumentSteganographyWrapper:
         
         try:
             print(f"[DOCUMENT] Hiding {'file' if is_file else 'text'} in {carrier_path}")
+            print(f"[DOCUMENT] Carrier file exists: {os.path.exists(carrier_path)}")
+            if os.path.exists(carrier_path):
+                print(f"[DOCUMENT] Carrier file size: {os.path.getsize(carrier_path)} bytes")
             
             # Create temporary file for content if it's not already a file
             content_path = None
@@ -190,7 +194,16 @@ class DocumentSteganographyWrapper:
             
             # Hide the content with timeout protection (documents should be fast)
             def do_hide():
-                return self.safe_stego.hide_file_in_document(carrier_path, content_path, output_path)
+                try:
+                    print(f"[DOCUMENT] Calling hide_file_in_document with carrier_path={carrier_path}, content_path={content_path}, output_path={output_path}")
+                    result = self.safe_stego.hide_file_in_document(carrier_path, content_path, output_path)
+                    print(f"[DOCUMENT] hide_file_in_document returned: {result}")
+                    return result
+                except Exception as hide_error:
+                    print(f"[DOCUMENT] Error in hide_file_in_document: {hide_error}")
+                    import traceback
+                    traceback.print_exc()
+                    return {"success": False, "error": f"Safe document module error: {str(hide_error)}"}
             
             # Use shorter timeout for documents (30 seconds should be plenty for metadata operations)
             import concurrent.futures
@@ -200,6 +213,9 @@ class DocumentSteganographyWrapper:
                     result = future.result(timeout=30)  # 30 second timeout for documents
             except concurrent.futures.TimeoutError:
                 result = {"success": False, "error": "Document processing timed out after 30 seconds"}
+            except Exception as executor_error:
+                print(f"[DOCUMENT] Executor error: {executor_error}")
+                result = {"success": False, "error": f"Document processing failed: {str(executor_error)}"}
             
             # Cleanup temporary file if we created one
             if content_path and content_path != content and os.path.exists(content_path):
@@ -208,7 +224,10 @@ class DocumentSteganographyWrapper:
                 except Exception as cleanup_error:
                     print(f"[DOCUMENT] Cleanup warning: {cleanup_error}")
             
-            print(f"[DOCUMENT] Hide result: {result.get('success', False)}")
+            print(f"[DOCUMENT] Final result: {result}")
+            print(f"[DOCUMENT] Success: {result.get('success', False)}")
+            if not result.get("success", False):
+                print(f"[DOCUMENT] Error: {result.get('error', 'Unknown error')}")
             return result
             
         except Exception as e:
@@ -988,9 +1007,13 @@ def translate_error_message(error_msg: str, carrier_type: str) -> str:
         else:
             return "The carrier file is too small to hide this much data. Please use a larger file or reduce the content size."
     
-    # File type issues
-    if "not supported" in error_lower or "unsupported" in error_lower:
+    # File type issues - but preserve specific module error messages
+    if ("not supported" in error_lower or "unsupported" in error_lower) and "safe document module error" not in error_lower:
         return f"File type not supported for {carrier_type} steganography. Please try with a different file format."
+    
+    # Preserve safe document module specific errors
+    if "safe document module error" in error_lower:
+        return error_msg  # Return the original error as it contains specific information
     
     # IMPORTANT: Check SPECIFIC forensic patterns FIRST before generic patterns
     
