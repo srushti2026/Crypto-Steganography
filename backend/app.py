@@ -286,14 +286,15 @@ frontend_url = os.getenv("FRONTEND_URL")
 if frontend_url:
     allowed_origins.append(frontend_url)
 
-# Add comprehensive CORS support
+# Add comprehensive CORS support with explicit domain handling
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins for maximum compatibility
     allow_credentials=False,  # Must be False when using wildcard origins
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_headers=["*", "Content-Type", "Authorization", "X-Requested-With"],
+    expose_headers=["*", "Content-Disposition", "Content-Length"],
+    max_age=86400,  # Cache preflight for 24 hours
 )
 
 # Add CORS debugging middleware
@@ -329,17 +330,19 @@ active_jobs: Dict[str, Dict[str, Any]] = {}
 # GENERIC CORS HANDLERS
 # ============================================================================
 
-# Generic OPTIONS handler for all API routes
+# Generic OPTIONS handler for all API routes - Enhanced for troublesome CORS issues
 @app.options("/{path:path}")
 async def catch_all_options(path: str):
-    """Handle preflight CORS requests for all API endpoints"""
+    """Handle preflight CORS requests for all API endpoints with comprehensive headers"""
     return JSONResponse(
-        content={"message": "OK"},
+        content={"message": "OK", "path": path, "method": "OPTIONS"},
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH",
             "Access-Control-Allow-Headers": "*",
             "Access-Control-Expose-Headers": "*",
+            "Access-Control-Max-Age": "86400",  # Cache for 24 hours
+            "Vary": "Origin",
         }
     )
 
@@ -1584,6 +1587,44 @@ async def embed_data(
             
         print(f"[API] Carrier file saved successfully: {os.path.getsize(carrier_path)} bytes")
         
+        # Perform capacity checking for audio files to prevent failures
+        if carrier_type == "audio":
+            try:
+                from modules.audio_capacity_manager import AudioCapacityManager
+                
+                # Calculate audio capacity
+                capacity_bytes, audio_info = AudioCapacityManager.calculate_audio_capacity(str(carrier_path))
+                
+                # Get content size to embed
+                content_size = 0
+                if content_type == "text" and text_content:
+                    content_size = len(text_content.encode('utf-8'))
+                elif content_type == "file" and content_file:
+                    await content_file.seek(0)  # Reset file pointer
+                    content_data = await content_file.read()
+                    content_size = len(content_data)
+                    await content_file.seek(0)  # Reset again for later use
+                
+                # Check if content fits in carrier
+                if content_size > capacity_bytes:
+                    # Clean up uploaded file
+                    if carrier_path.exists():
+                        os.remove(carrier_path)
+                    
+                    duration = audio_info.get('duration_seconds', 0)
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"The audio file is too small to hide this much data. Audio capacity: {capacity_bytes:,} bytes ({duration:.1f}s), Content size: {content_size:,} bytes. Please use a larger audio file or reduce the file size you're trying to hide."
+                    )
+                    
+                print(f"[CAPACITY CHECK] Audio file can handle {content_size:,} bytes (capacity: {capacity_bytes:,} bytes)")
+                
+            except ImportError:
+                print("[CAPACITY CHECK] Audio capacity manager not available, skipping pre-check")
+            except Exception as e:
+                print(f"[CAPACITY CHECK] Failed to check audio capacity: {e}")
+                # Continue with operation - capacity check is not critical
+        
         # If the uploaded filename lacked an extension, try to detect it from the binary
         if not carrier_path.suffix:
             detected_ext = detect_file_format_from_binary(content)
@@ -2303,11 +2344,47 @@ async def operations_status_options(operation_id: str):
 
 @app.get("/api/operations/{operation_id}/status", response_model=StatusResponse)
 async def get_operation_status(operation_id: str):
-    """Get status of a steganography operation (regular or batch)"""
-    if operation_id not in active_jobs:
-        raise HTTPException(status_code=404, detail="Operation not found")
+    """Get status of a steganography operation (regular or batch) with enhanced error handling"""
+    try:
+        # Add CORS headers explicitly for troublesome browsers
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*"
+        }
+        
+        if operation_id not in active_jobs:
+            # Return proper JSON response instead of HTTPException for better CORS handling
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Operation not found"},
+                headers=headers
+            )
+        
+        job = active_jobs[operation_id]
+        
+        # Add timeout handling to prevent server overload
+        import time
+        current_time = time.time()
+        job_start_time = job.get("start_time", current_time)
+        
+        # If operation has been running for more than 10 minutes, mark as failed
+        if current_time - job_start_time > 600:  # 10 minutes
+            job["status"] = "failed"
+            job["error"] = "Operation timed out after 10 minutes"
     
-    job = active_jobs[operation_id]
+    except Exception as e:
+        print(f"❌ Error in get_operation_status: {e}")
+        # Return JSON error response with CORS headers
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Internal server error: {str(e)}"},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS", 
+                "Access-Control-Allow-Headers": "*"
+            }
+        )
     
     # Handle batch operations
     if "batch_id" in job:
