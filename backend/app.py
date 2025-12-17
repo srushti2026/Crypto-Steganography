@@ -1057,20 +1057,35 @@ def translate_error_message(error_msg: str, carrier_type: str) -> str:
 
 def get_steganography_manager(carrier_type: str, password: str = ""):
     """Get the appropriate steganography manager for the carrier type"""
-    if carrier_type not in steganography_managers or steganography_managers[carrier_type] is None:
+    print(f"[MANAGER] Attempting to create manager for {carrier_type}")
+    print(f"[MANAGER] Manager registry: {steganography_managers}")
+    
+    if carrier_type not in steganography_managers:
+        print(f"[MANAGER ERROR] Carrier type {carrier_type} not in registry")
+        return None
+        
+    if steganography_managers[carrier_type] is None:
+        print(f"[MANAGER ERROR] Manager for {carrier_type} is None")
         return None
     
     try:
         manager_class = steganography_managers[carrier_type]
+        print(f"[MANAGER] Manager class for {carrier_type}: {manager_class}")
         
         # Handle different initialization patterns for different managers
         if carrier_type == "audio":
             # UniversalFileAudio takes password in __init__
-            return manager_class(password=password)
+            print(f"[MANAGER] Creating audio manager with password")
+            manager = manager_class(password=password)
+            print(f"[MANAGER] Audio manager created successfully: {type(manager)}")
+            return manager
         elif carrier_type in ["document", "image"]:
             # UniversalFileSteganography doesn't take password in __init__
             # Password is passed to methods instead
-            return manager_class()
+            print(f"[MANAGER] Creating {carrier_type} manager without password in __init__")
+            manager = manager_class()
+            print(f"[MANAGER] {carrier_type} manager created successfully: {type(manager)}")
+            return manager
         elif carrier_type == "video":
             # VideoSteganographyManager takes password in __init__
             print(f"[MANAGER DEBUG] Creating VideoSteganographyManager with password: '{password}' (length: {len(password)})")
@@ -1080,13 +1095,21 @@ def get_steganography_manager(carrier_type: str, password: str = ""):
             return manager
         else:
             # Try with password first, fallback to no password
+            print(f"[MANAGER] Unknown carrier type {carrier_type}, trying with password first")
             try:
-                return manager_class(password=password)
-            except TypeError:
-                return manager_class()
+                manager = manager_class(password=password)
+                print(f"[MANAGER] Created {carrier_type} manager with password: {type(manager)}")
+                return manager
+            except TypeError as te:
+                print(f"[MANAGER] Password init failed for {carrier_type}: {te}, trying without password")
+                manager = manager_class()
+                print(f"[MANAGER] Created {carrier_type} manager without password: {type(manager)}")
+                return manager
             
     except Exception as e:
-        print(f"Error creating {carrier_type} manager: {e}")
+        print(f"[MANAGER ERROR] Error creating {carrier_type} manager: {e}")
+        import traceback
+        print(f"[MANAGER ERROR] Full traceback: {traceback.format_exc()}")
         return None
 
 # ============================================================================
@@ -1924,6 +1947,19 @@ async def embed_data(
             }
         )
 
+# Handle OPTIONS preflight requests for forensic embed endpoint
+@app.options("/api/forensic-embed")
+async def forensic_embed_options():
+    """Handle preflight CORS request for forensic embed endpoint"""
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
 @app.post("/api/forensic-embed", response_model=OperationResponse)
 async def forensic_embed_data(
     carrier_file: UploadFile = File(...),
@@ -2035,17 +2071,39 @@ async def forensic_embed_data(
             db_operation_id
         )
         
-        return OperationResponse(
-            success=True,
-            operation_id=operation_id,
-            message="Forensic embedding operation started",
-            output_filename=expected_output_filename
+        # Return success response with CORS headers
+        response_data = {
+            "success": True,
+            "operation_id": operation_id,
+            "message": "Forensic embedding operation started",
+            "output_filename": expected_output_filename,
+            "data": None
+        }
+        
+        return JSONResponse(
+            content=response_data,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "3600"
+            }
         )
         
     except Exception as e:
         if operation_id in active_jobs:
             update_job_status(operation_id, "failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        
+        # Return error with CORS headers
+        return JSONResponse(
+            status_code=500,
+            content={"detail": str(e)},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "*"
+            }
+        )
 
 @app.post("/api/embed-batch", response_model=OperationResponse)
 async def embed_data_batch(
@@ -2552,26 +2610,46 @@ async def operations_status_options(operation_id: str):
 @app.get("/api/operations/{operation_id}/status", response_model=StatusResponse)
 async def get_operation_status(operation_id: str):
     """Get status of a steganography operation (regular or batch) with enhanced error handling"""
+    # Define CORS headers early for all responses
+    headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Max-Age": "3600",
+        "Cache-Control": "no-cache"
+    }
+    
     try:
-        # Add CORS headers explicitly for troublesome browsers
-        headers = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "*"
-        }
-        
-        if operation_id not in active_jobs:
-            # Return proper JSON response instead of HTTPException for better CORS handling
+        # Check if operation exists
+        if not operation_id or operation_id not in active_jobs:
             return JSONResponse(
                 status_code=404,
-                content={"detail": "Operation not found"},
+                content={
+                    "status": "not_found",
+                    "progress": 0,
+                    "message": "Operation not found or expired",
+                    "error": None,
+                    "result": None
+                },
                 headers=headers
             )
         
-        job = active_jobs[operation_id]
+        # Safely get job data
+        job = active_jobs.get(operation_id)
+        if not job:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": "not_found", 
+                    "progress": 0,
+                    "message": "Operation data not available",
+                    "error": None,
+                    "result": None
+                },
+                headers=headers
+            )
         
         # Add timeout handling to prevent server overload
-        import time
         current_time = time.time()
         job_start_time = job.get("start_time", current_time)
         
@@ -2601,9 +2679,11 @@ async def get_operation_status(operation_id: str):
                 "Access-Control-Allow-Headers": "*"
             }
         )
-    
-    # Handle batch operations
-    if "batch_id" in job:
+        
+        # Wrap remaining processing in try-catch to prevent server crashes
+        try:
+            # Handle batch operations
+            if "batch_id" in job:
         total_files = job.get("total_files", 0)
         completed_files = job.get("completed_files", 0)
         failed_files = job.get("failed_files", 0)
@@ -2653,22 +2733,33 @@ async def get_operation_status(operation_id: str):
             error = str(error)
         
         # Create response with CORS headers
-        response_data = {
-            "status": job["status"],
-            "progress": job.get("progress"),
-            "message": job.get("message"),
-            "error": error,
-            "result": job.get("result")
-        }
-        
-        return JSONResponse(
-            content=response_data,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "*"
+            response_data = {
+                "status": job["status"],
+                "progress": job.get("progress"),
+                "message": job.get("message"),
+                "error": error,
+                "result": job.get("result")
             }
-        )
+            
+            return JSONResponse(
+                content=response_data,
+                headers=headers
+            )
+            
+        except Exception as processing_error:
+            print(f"❌ Error processing job status for {operation_id}: {processing_error}")
+            # Return safe fallback response
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": "error",
+                    "progress": 0,
+                    "message": "Status processing failed",
+                    "error": f"Unable to retrieve status: {str(processing_error)}",
+                    "result": None
+                },
+                headers=headers
+            )
 
 # Handle OPTIONS preflight requests for operations download endpoint
 @app.options("/api/operations/{operation_id}/download")
@@ -3021,9 +3112,14 @@ async def process_embed_operation(
         
         # Get appropriate steganography manager
         print(f"[EMBED DEBUG] Creating manager for {carrier_type} with password: '{password}' (length: {len(password) if password else 0})")
+        print(f"[EMBED DEBUG] Available managers: {list(steganography_managers.keys())}")
+        print(f"[EMBED DEBUG] Manager for {carrier_type}: {steganography_managers.get(carrier_type)}")
+        
         manager = get_steganography_manager(carrier_type, password)
+        print(f"[EMBED DEBUG] Manager created: {type(manager) if manager else None}")
+        
         if not manager:
-            raise Exception(f"No manager available for {carrier_type}")
+            raise Exception(f"No manager available for {carrier_type}. Available managers: {list(steganography_managers.keys())}")
         
         # Debug: Check if manager has password correctly set
         if hasattr(manager, 'password'):
@@ -3464,10 +3560,15 @@ async def process_embed_operation(
             print(f"[EMBED] Memory cleanup completed for operation {operation_id}, Current usage: {memory_after:.1f}MB")
             
     except Exception as e:
-        error_msg = translate_error_message(str(e), carrier_type)
+        # Enhanced error logging for debugging - show original error first
+        original_error = str(e)
+        print(f"❌ [EMBED ERROR] Operation {operation_id} ORIGINAL ERROR: {original_error}")
+        print(f"❌ [EMBED ERROR] Exception type: {type(e)}")
+        import traceback
+        print(f"❌ [EMBED ERROR] Full traceback: {traceback.format_exc()}")
         
-        # Enhanced error logging for debugging
-        print(f"❌ [EMBED ERROR] Operation {operation_id} failed: {error_msg}")
+        error_msg = translate_error_message(original_error, carrier_type)
+        print(f"❌ [EMBED ERROR] Translated error: {error_msg}")
         print(f"❌ [EMBED ERROR] Original error: {str(e)}")
         print(f"❌ [EMBED ERROR] Carrier type: {carrier_type}, Content type: {content_type}")
         
