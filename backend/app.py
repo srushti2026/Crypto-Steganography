@@ -3422,41 +3422,30 @@ async def process_embed_operation(
             
             # Wrap steganography operation with timeout in production
             try:
+                # Prepare kwargs based on manager type and signature
+                kwargs = {'is_file': is_file}
+                if 'original_filename' in sig.parameters:
+                    kwargs['original_filename'] = original_filename
+                # Only add password for non-audio managers (audio uses password from __init__)
+                if carrier_type != "audio" and 'password' in sig.parameters:
+                    kwargs['password'] = password
+                
                 if IS_PRODUCTION:
                     print(f"[EMBED] Running with production timeout: {MAX_OPERATION_TIMEOUT}s")
-                    if 'original_filename' in sig.parameters:
-                        manager_result = run_with_timeout(
-                            manager.hide_data,
-                            (carrier_file_path, content_to_hide, str(output_path)),
-                            {'password': password, 'is_file': is_file, 'original_filename': original_filename},
-                            MAX_OPERATION_TIMEOUT
-                        )
-                    else:
-                        manager_result = run_with_timeout(
-                            manager.hide_data,
-                            (carrier_file_path, content_to_hide, str(output_path)),
-                            {'password': password, 'is_file': is_file},
-                            MAX_OPERATION_TIMEOUT
-                        )
+                    manager_result = run_with_timeout(
+                        manager.hide_data,
+                        (carrier_file_path, content_to_hide, str(output_path)),
+                        kwargs,
+                        MAX_OPERATION_TIMEOUT
+                    )
                 else:
                     # Local development - no timeout
-                    if 'original_filename' in sig.parameters:
-                        manager_result = manager.hide_data(
-                            carrier_file_path,
-                            content_to_hide,
-                            str(output_path),
-                            password=password,  # Fix: pass password correctly
-                            is_file=is_file,
-                            original_filename=original_filename
-                        )
-                    else:
-                        manager_result = manager.hide_data(
-                            carrier_file_path,
-                            content_to_hide,
-                            str(output_path),
-                            password=password,  # Fix: pass password correctly  
-                            is_file=is_file
-                        )
+                    manager_result = manager.hide_data(
+                        carrier_file_path,
+                        content_to_hide,
+                        str(output_path),
+                        **kwargs
+                    )
             except Exception as embed_error:
                 if "timed out" in str(embed_error).lower():
                     raise Exception(f"Operation timed out - file may be too large or complex for current server capacity")
@@ -3719,24 +3708,21 @@ async def process_batch_embed_operation(
             actual_output_path = result.get("output_path", str(output_path))
         else:
             import inspect
+            # Prepare kwargs based on manager type and signature
             sig = inspect.signature(manager.hide_data)
+            kwargs = {'is_file': is_file}
             if 'original_filename' in sig.parameters:
-                result = manager.hide_data(
-                    carrier_file_path,
-                    content_to_hide,
-                    str(output_path),
-                    password,  # Pass password as 4th parameter
-                    is_file,
-                    original_filename
-                )
-            else:
-                result = manager.hide_data(
-                    carrier_file_path,
-                    content_to_hide,
-                    str(output_path),
-                    password,  # Pass password as 4th parameter
-                    is_file
-                )
+                kwargs['original_filename'] = original_filename
+            # Only add password for non-audio managers (audio uses password from __init__)
+            if carrier_type != "audio" and 'password' in sig.parameters:
+                kwargs['password'] = password
+            
+            result = manager.hide_data(
+                carrier_file_path,
+                content_to_hide,
+                str(output_path),
+                **kwargs
+            )
             success = result.get("success", False)
             actual_output_path = result.get("output_path", str(output_path))
         
