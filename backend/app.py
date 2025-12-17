@@ -470,9 +470,6 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# Start memory monitoring for production
-start_memory_monitor()
-
 # Enable CORS for React frontend - supports both development and production
 allowed_origins = [
     "http://localhost:5173", 
@@ -1223,6 +1220,9 @@ def get_steganography_manager(carrier_type: str, password: str = ""):
         import traceback
         print(f"[MANAGER ERROR] Full traceback: {traceback.format_exc()}")
         return None
+
+# Start memory monitoring for production (after all functions are defined)
+start_memory_monitor()
 
 # ============================================================================
 # USER MANAGEMENT ENDPOINTS
@@ -2808,68 +2808,68 @@ async def get_operation_status(operation_id: str):
         try:
             # Handle batch operations
             if "batch_id" in job:
-        total_files = job.get("total_files", 0)
-        completed_files = job.get("completed_files", 0)
-        failed_files = job.get("failed_files", 0)
-        
-        # Calculate overall progress
-        progress = 0
-        if total_files > 0:
-            progress = int((completed_files + failed_files) * 100 / total_files)
-        
-        # Create batch-specific result
-        batch_result = {
-            "batch_operation": True,
-            "total_files": total_files,
-            "completed_files": completed_files,
-            "failed_files": failed_files,
-            "output_files": job.get("output_files", []),
-            "individual_operations": job.get("individual_operations", [])
-        }
-        
-        # Convert error to string if it's a dict
-        error = job.get("error")
-        if isinstance(error, dict):
-            error = str(error)
-        
-        # Create response with CORS headers
-        response_data = {
-            "status": job["status"],
-            "progress": progress,
-            "message": f"Processed {completed_files + failed_files}/{total_files} files",
-            "error": error,
-            "result": batch_result
-        }
-        
-        return JSONResponse(
-            content=response_data,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "*"
-            }
-        )
-    else:
-        # Handle regular operations
-        # Convert error to string if it's a dict
-        error = job.get("error")
-        if isinstance(error, dict):
-            error = str(error)
-        
-        # Create response with CORS headers
-            response_data = {
-                "status": job["status"],
-                "progress": job.get("progress"),
-                "message": job.get("message"),
-                "error": error,
-                "result": job.get("result")
-            }
-            
-            return JSONResponse(
-                content=response_data,
-                headers=headers
-            )
-            
+                total_files = job.get("total_files", 0)
+                completed_files = job.get("completed_files", 0)
+                failed_files = job.get("failed_files", 0)
+                
+                # Calculate overall progress
+                progress = 0
+                if total_files > 0:
+                    progress = int((completed_files + failed_files) * 100 / total_files)
+                
+                # Create batch-specific result
+                batch_result = {
+                    "batch_operation": True,
+                    "total_files": total_files,
+                    "completed_files": completed_files,
+                    "failed_files": failed_files,
+                    "output_files": job.get("output_files", []),
+                    "individual_operations": job.get("individual_operations", [])
+                }
+                
+                # Convert error to string if it's a dict
+                error = job.get("error")
+                if isinstance(error, dict):
+                    error = str(error)
+                
+                # Create response with CORS headers
+                response_data = {
+                    "status": job["status"],
+                    "progress": progress,
+                    "message": f"Processed {completed_files + failed_files}/{total_files} files",
+                    "error": error,
+                    "result": batch_result
+                }
+                
+                return JSONResponse(
+                    content=response_data,
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, OPTIONS",
+                        "Access-Control-Allow-Headers": "*"
+                    }
+                )
+            else:
+                # Handle regular operations
+                # Convert error to string if it's a dict
+                error = job.get("error")
+                if isinstance(error, dict):
+                    error = str(error)
+                
+                # Create response with CORS headers
+                response_data = {
+                    "status": job["status"],
+                    "progress": job.get("progress"),
+                    "message": job.get("message"),
+                    "error": error,
+                    "result": job.get("result")
+                }
+                
+                return JSONResponse(
+                    content=response_data,
+                    headers=headers
+                )
+                
         except Exception as processing_error:
             print(f"❌ Error processing job status for {operation_id}: {processing_error}")
             # Return safe fallback response
