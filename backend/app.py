@@ -81,32 +81,90 @@ else:
 print(f"[CONFIG] Max file size: {MAX_FILE_SIZE_MB}MB, Max operation timeout: {MAX_OPERATION_TIMEOUT}s")
 
 # Memory monitoring function
+def cleanup_old_jobs():
+    """Remove completed jobs older than 1 hour to prevent memory leaks"""
+    current_time = time.time()
+    jobs_to_remove = []
+    
+    for operation_id, job in active_jobs.items():
+        # Check if job is completed and old
+        if job.get("status") in ["completed", "failed"]:
+            job_time = job.get("start_time", current_time)
+            if current_time - job_time > 3600:  # 1 hour old
+                jobs_to_remove.append(operation_id)
+    
+    # Remove old jobs
+    for operation_id in jobs_to_remove:
+        try:
+            del active_jobs[operation_id]
+            print(f"[CLEANUP] Removed old job: {operation_id}")
+        except KeyError:
+            pass
+    
+    if jobs_to_remove:
+        print(f"[CLEANUP] Removed {len(jobs_to_remove)} old jobs from memory")
+    
+    return len(jobs_to_remove)
+
 def force_memory_cleanup():
-    """Aggressive memory cleanup for production environment"""
-    if IS_PRODUCTION:
-        import gc
-        import psutil
-        import os
+    """Comprehensive memory cleanup for production environment"""
+    import gc
+    import psutil
+    import os
+    
+    # Get memory usage before cleanup
+    process = psutil.Process(os.getpid())
+    memory_before = process.memory_info().rss / 1024 / 1024  # MB
+    
+    # Clean up old jobs first
+    cleanup_old_jobs()
+    
+    # Limit active jobs to prevent memory overflow
+    if len(active_jobs) > 100:
+        print(f"[MEMORY] Too many active jobs ({len(active_jobs)}), cleaning up oldest")
+        # Sort by creation time and remove oldest completed jobs
+        sorted_jobs = sorted(
+            [(k, v) for k, v in active_jobs.items() if v.get("status") in ["completed", "failed"]],
+            key=lambda x: x[1].get("start_time", 0)
+        )
         
-        # Get memory usage before cleanup
-        process = psutil.Process(os.getpid())
-        memory_before = process.memory_info().rss / 1024 / 1024  # MB
+        # Remove oldest half of completed jobs
+        jobs_to_remove = sorted_jobs[:len(sorted_jobs)//2]
+        for operation_id, _ in jobs_to_remove:
+            try:
+                del active_jobs[operation_id]
+            except KeyError:
+                pass
         
-        # Force garbage collection
-        gc.collect()
-        gc.collect()  # Run twice to be thorough
-        
-        # Get memory usage after cleanup
-        memory_after = process.memory_info().rss / 1024 / 1024  # MB
-        freed = memory_before - memory_after
-        
-        print(f"[MEMORY] Before: {memory_before:.1f}MB, After: {memory_after:.1f}MB, Freed: {freed:.1f}MB")
-        
-        # If still using too much memory, warn
-        if memory_after > 400:  # 400MB threshold for Render starter plan
-            print(f"[WARNING] High memory usage: {memory_after:.1f}MB")
+        if jobs_to_remove:
+            print(f"[MEMORY] Emergency cleanup: removed {len(jobs_to_remove)} jobs")
+    
+    # Force garbage collection
+    gc.collect()
+    gc.collect()  # Run twice to be thorough
+    
+    # Get memory usage after cleanup
+    memory_after = process.memory_info().rss / 1024 / 1024  # MB
+    freed = memory_before - memory_after
+    
+    print(f"[MEMORY] Before: {memory_before:.1f}MB, After: {memory_after:.1f}MB, Freed: {freed:.1f}MB")
+    print(f"[MEMORY] Active jobs: {len(active_jobs)}")
+    
+    # If still using too much memory, warn
+    if memory_after > 350:  # Lower threshold for Render free plan
+        print(f"[WARNING] High memory usage: {memory_after:.1f}MB")
+        # Emergency cleanup of more jobs
+        if len(active_jobs) > 50:
+            emergency_cleanup = list(active_jobs.keys())[:len(active_jobs)//2]
+            for operation_id in emergency_cleanup:
+                try:
+                    del active_jobs[operation_id]
+                except KeyError:
+                    pass
+            print(f"[EMERGENCY] Removed {len(emergency_cleanup)} jobs due to high memory")
+            gc.collect()
             
-        return memory_after
+    return memory_after
 
 # Import steganography modules with fallbacks
 steganography_managers = {}
@@ -412,6 +470,9 @@ app = FastAPI(
     version="2.0.0"
 )
 
+# Start memory monitoring for production
+start_memory_monitor()
+
 # Enable CORS for React frontend - supports both development and production
 allowed_origins = [
     "http://localhost:5173", 
@@ -473,6 +534,41 @@ for directory in [UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR]:
 
 # Global variables for job tracking
 active_jobs: Dict[str, Dict[str, Any]] = {}
+
+# Background memory monitoring
+def start_memory_monitor():
+    """Start background memory monitoring task"""
+    if IS_PRODUCTION:
+        import threading
+        
+        def memory_monitor():
+            while True:
+                try:
+                    time.sleep(300)  # Check every 5 minutes
+                    
+                    # Get current memory usage
+                    import psutil
+                    process = psutil.Process()
+                    memory_mb = process.memory_info().rss / 1024 / 1024
+                    
+                    print(f"[MONITOR] Memory: {memory_mb:.1f}MB, Active jobs: {len(active_jobs)}")
+                    
+                    # Cleanup if memory is high
+                    if memory_mb > 300 or len(active_jobs) > 50:
+                        print(f"[MONITOR] High memory/jobs detected, running cleanup")
+                        force_memory_cleanup()
+                    
+                    # Emergency cleanup if very high
+                    if memory_mb > 400:
+                        print(f"[MONITOR] Emergency memory cleanup needed")
+                        cleanup_old_jobs()
+                        
+                except Exception as e:
+                    print(f"[MONITOR] Error in memory monitor: {e}")
+        
+        monitor_thread = threading.Thread(target=memory_monitor, daemon=True)
+        monitor_thread.start()
+        print("[MONITOR] Memory monitor started")
 
 # ============================================================================
 # GENERIC CORS HANDLERS
@@ -580,7 +676,7 @@ def update_job_status(job_id: str, status: str, progress: int = None,
                      output_files: List[str] = None, extracted_data: str = None,
                      original_filename: str = None, is_multi_layer: bool = False,
                      layer_details: List[Dict] = None):
-    """Update job status in memory with multi-layer support"""
+    """Update job status in memory with multi-layer support and automatic cleanup"""
     if job_id in active_jobs:
         update_data = {
             "status": status,
@@ -604,6 +700,22 @@ def update_job_status(job_id: str, status: str, progress: int = None,
             update_data["layer_details"] = layer_details
             
         active_jobs[job_id].update(update_data)
+        
+        # Schedule cleanup for completed/failed jobs after 30 minutes
+        if status in ["completed", "failed"] and IS_PRODUCTION:
+            import threading
+            def delayed_cleanup():
+                time.sleep(1800)  # 30 minutes
+                try:
+                    if job_id in active_jobs and active_jobs[job_id].get("status") == status:
+                        del active_jobs[job_id]
+                        print(f"[AUTO-CLEANUP] Removed job {job_id} after 30 minutes")
+                except:
+                    pass
+            
+            # Run cleanup in background thread
+            cleanup_thread = threading.Thread(target=delayed_cleanup, daemon=True)
+            cleanup_thread.start()
 
 def sanitize_filename(filename: str) -> str:
     """Sanitize filename to be safe for filesystem operations"""
@@ -1763,12 +1875,18 @@ async def embed_data(
         if content_type == "file" and not content_file:
             raise HTTPException(status_code=400, detail="File required for file embedding")
         
+        # Check concurrent operation limit
+        processing_jobs = sum(1 for job in active_jobs.values() if job.get("status") == "processing")
+        if IS_PRODUCTION and processing_jobs >= 5:  # Limit to 5 concurrent operations
+            raise HTTPException(status_code=429, detail="Server is busy. Please try again in a few minutes.")
+        
         # Initialize job tracking
         active_jobs[operation_id] = {
             "status": "processing",
             "progress": 0,
             "message": "Starting embedding process",
             "created_at": datetime.now().isoformat(),
+            "start_time": time.time(),
             "carrier_type": carrier_type,
             "content_type": content_type
         }
@@ -2000,12 +2118,18 @@ async def forensic_embed_data(
         print(f"[FORENSIC API] Detected carrier type: {carrier_type} for file: {carrier_file.filename}")
         print(f"[FORENSIC API] Forensic metadata: {metadata}")
         
+        # Check concurrent operation limit
+        processing_jobs = sum(1 for job in active_jobs.values() if job.get("status") == "processing")
+        if IS_PRODUCTION and processing_jobs >= 5:
+            raise HTTPException(status_code=429, detail="Server is busy. Please try again in a few minutes.")
+        
         # Initialize job tracking
         active_jobs[operation_id] = {
             "status": "processing",
             "progress": 0,
             "message": "Starting forensic embedding process",
             "created_at": datetime.now().isoformat(),
+            "start_time": time.time(),
             "carrier_type": carrier_type,
             "content_type": "forensic",
             "forensic_metadata": metadata
@@ -3051,23 +3175,6 @@ def run_with_timeout(func, args, kwargs, timeout_seconds):
     except concurrent.futures.TimeoutError:
         raise Exception(f"Operation timed out after {timeout_seconds} seconds")
 
-def force_memory_cleanup():
-    """Force garbage collection and memory cleanup"""
-    try:
-        import gc
-        import psutil
-        import os
-        
-        # Force garbage collection
-        gc.collect()
-        
-        # Log memory usage
-        process = psutil.Process(os.getpid())
-        memory_mb = process.memory_info().rss / 1024 / 1024
-        print(f"💾 Memory usage after cleanup: {memory_mb:.1f} MB")
-        
-    except Exception as e:
-        print(f"⚠️  Memory cleanup failed: {e}")
 
 async def process_embed_operation(
     operation_id: str,
