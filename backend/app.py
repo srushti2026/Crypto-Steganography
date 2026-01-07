@@ -25,6 +25,7 @@ import string
 import hashlib
 import zipfile
 import base64
+import traceback
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Union
 import json
@@ -469,6 +470,70 @@ app = FastAPI(
     description="Advanced steganography API with React frontend integration",
     version="2.0.0"
 )
+
+# Database health check function
+def check_database_connection():
+    """Check if Supabase database connection is healthy"""
+    try:
+        from supabase_config import supabase
+        # Simple query to test connection
+        result = supabase.table("operations").select("id").limit(1).execute()
+        print("✅ Database connection verified")
+        return True
+    except Exception as e:
+        print(f"❌ Database connection failed: {str(e)}")
+        return False
+
+# Cleanup stale jobs from before potential database pause
+def cleanup_stale_operations():
+    """Clean up operations that may be invalid after database resume"""
+    try:
+        current_time = time.time()
+        stale_jobs = []
+        
+        for job_id, job in list(active_jobs.items()):
+            try:
+                job_start_time = job.get("start_time", current_time)
+                # Remove jobs older than 2 hours
+                if current_time - job_start_time > 7200:
+                    stale_jobs.append(job_id)
+            except Exception:
+                # If we can't process the job, remove it
+                stale_jobs.append(job_id)
+        
+        # Clean up stale jobs
+        for job_id in stale_jobs:
+            active_jobs.pop(job_id, None)
+            print(f"🧹 Cleaned up stale job: {job_id}")
+            
+        if stale_jobs:
+            print(f"🧹 Cleaned up {len(stale_jobs)} stale operations")
+        else:
+            print("✅ No stale operations to clean up")
+            
+    except Exception as e:
+        print(f"❌ Error during stale job cleanup: {str(e)}")
+
+# Startup event handler
+@app.on_event("startup")
+async def startup_event():
+    """Handle application startup and database reconnection"""
+    print("🚀 VeilForge API starting up...")
+    
+    # Check database connection
+    db_healthy = check_database_connection()
+    if db_healthy:
+        print("📊 Database connection established")
+    else:
+        print("⚠️ Database connection issues detected - will retry on demand")
+    
+    # Clean up any stale jobs
+    cleanup_stale_operations()
+    
+    # Start memory monitor
+    start_memory_monitor()
+    
+    print("✅ Application startup completed successfully")
 
 # Enable CORS for React frontend - supports both development and production
 allowed_origins = [
@@ -2790,100 +2855,90 @@ async def get_operation_status(operation_id: str):
             job["status"] = "failed"  
             job["error"] = "Operation appears to have crashed - no status updates received"
             print(f"💥 Operation {operation_id} marked as crashed - no updates for 5+ minutes")
-    
+
+        # Handle batch operations
+        if "batch_id" in job:
+            total_files = job.get("total_files", 0)
+            completed_files = job.get("completed_files", 0)
+            failed_files = job.get("failed_files", 0)
+            
+            # Calculate overall progress
+            progress = 0
+            if total_files > 0:
+                progress = int((completed_files + failed_files) * 100 / total_files)
+            
+            # Create batch-specific result
+            batch_result = {
+                "batch_operation": True,
+                "total_files": total_files,
+                "completed_files": completed_files,
+                "failed_files": failed_files,
+                "output_files": job.get("output_files", []),
+                "individual_operations": job.get("individual_operations", [])
+            }
+            
+            # Convert error to string if it's a dict
+            error = job.get("error")
+            if isinstance(error, dict):
+                error = str(error)
+            
+            # Create response with CORS headers
+            response_data = {
+                "status": job["status"],
+                "progress": progress,
+                "message": f"Processed {completed_files + failed_files}/{total_files} files",
+                "error": error,
+                "result": batch_result
+            }
+            
+            return JSONResponse(
+                content=response_data,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, OPTIONS",
+                    "Access-Control-Allow-Headers": "*"
+                }
+            )
+        else:
+            # Handle regular operations
+            # Convert error to string if it's a dict
+            error = job.get("error")
+            if isinstance(error, dict):
+                error = str(error)
+            
+            # Create response with CORS headers
+            response_data = {
+                "status": job["status"],
+                "progress": job.get("progress"),
+                "message": job.get("message"),
+                "error": error,
+                "result": job.get("result")
+            }
+            
+            return JSONResponse(
+                content=response_data,
+                headers=headers
+            )
+                
     except Exception as e:
-        print(f"❌ Error in get_operation_status: {e}")
+        print(f"❌ Error in get_operation_status for {operation_id}: {e}")
+        print(f"❌ Full traceback: {traceback.format_exc()}")
         # Return JSON error response with CORS headers
         return JSONResponse(
             status_code=500,
-            content={"detail": f"Internal server error: {str(e)}"},
+            content={
+                "status": "error",
+                "progress": 0,
+                "message": "Status processing failed",
+                "error": f"Unable to retrieve status: {str(e)}",
+                "result": None
+            },
             headers={
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET, OPTIONS", 
                 "Access-Control-Allow-Headers": "*"
             }
         )
-        
-        # Wrap remaining processing in try-catch to prevent server crashes
-        try:
-            # Handle batch operations
-            if "batch_id" in job:
-                total_files = job.get("total_files", 0)
-                completed_files = job.get("completed_files", 0)
-                failed_files = job.get("failed_files", 0)
-                
-                # Calculate overall progress
-                progress = 0
-                if total_files > 0:
-                    progress = int((completed_files + failed_files) * 100 / total_files)
-                
-                # Create batch-specific result
-                batch_result = {
-                    "batch_operation": True,
-                    "total_files": total_files,
-                    "completed_files": completed_files,
-                    "failed_files": failed_files,
-                    "output_files": job.get("output_files", []),
-                    "individual_operations": job.get("individual_operations", [])
-                }
-                
-                # Convert error to string if it's a dict
-                error = job.get("error")
-                if isinstance(error, dict):
-                    error = str(error)
-                
-                # Create response with CORS headers
-                response_data = {
-                    "status": job["status"],
-                    "progress": progress,
-                    "message": f"Processed {completed_files + failed_files}/{total_files} files",
-                    "error": error,
-                    "result": batch_result
-                }
-                
-                return JSONResponse(
-                    content=response_data,
-                    headers={
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, OPTIONS",
-                        "Access-Control-Allow-Headers": "*"
-                    }
-                )
-            else:
-                # Handle regular operations
-                # Convert error to string if it's a dict
-                error = job.get("error")
-                if isinstance(error, dict):
-                    error = str(error)
-                
-                # Create response with CORS headers
-                response_data = {
-                    "status": job["status"],
-                    "progress": job.get("progress"),
-                    "message": job.get("message"),
-                    "error": error,
-                    "result": job.get("result")
-                }
-                
-                return JSONResponse(
-                    content=response_data,
-                    headers=headers
-                )
-                
-        except Exception as processing_error:
-            print(f"❌ Error processing job status for {operation_id}: {processing_error}")
-            # Return safe fallback response
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "status": "error",
-                    "progress": 0,
-                    "message": "Status processing failed",
-                    "error": f"Unable to retrieve status: {str(processing_error)}",
-                    "result": None
-                },
-                headers=headers
-            )
 
 # Handle OPTIONS preflight requests for operations download endpoint
 @app.options("/api/operations/{operation_id}/download")
