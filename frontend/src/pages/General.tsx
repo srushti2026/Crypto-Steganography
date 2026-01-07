@@ -1365,10 +1365,22 @@ export default function General() {
       
       console.log('[DOWNLOAD] Final filename:', defaultFilename);
       
-      // Use the utility function for proper save as functionality
-      const { downloadFromUrl } = await import('@/utils/fileDownload');
-      await downloadFromUrl(
-        downloadEndpoint, 
+      console.log('🔽 General download - fetching from:', downloadEndpoint);
+      console.log('📁 General download - suggested filename:', defaultFilename);
+      
+      // Fetch the file first, then use downloadFileWithSaveAs directly (like PixelVault)
+      const response = await fetch(downloadEndpoint);
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      console.log('📦 General blob created, size:', blob.size, 'bytes, type:', blob.type);
+      
+      // Use direct downloadFileWithSaveAs for consistent Save As behavior
+      const { downloadFileWithSaveAs } = await import('@/utils/fileDownload');
+      await downloadFileWithSaveAs(
+        blob,
         defaultFilename,
         `File saved successfully as "{filename}"!`
       );

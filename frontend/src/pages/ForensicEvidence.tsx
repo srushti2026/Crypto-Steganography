@@ -976,11 +976,28 @@ const ForensicEvidence = () => {
       const downloadEndpoint = `${API_BASE_URL}/api/operations/${currentOperationId}/download-forensic`;
       const defaultFilename = `forensic_evidence_${caseId || Date.now()}.zip`;
       
+      console.log('🔽 Forensic download - fetching from:', downloadEndpoint);
+      console.log('📁 Forensic download - suggested filename:', defaultFilename);
+      
       // Try forensic download first, fallback to standard if not available
       try {
-        const { downloadFromUrl } = await import('@/utils/fileDownload');
-        await downloadFromUrl(
-          downloadEndpoint,
+        // Fetch the file first, then use downloadFileWithSaveAs directly (like PixelVault)
+        const response = await fetch(downloadEndpoint);
+        if (!response.ok) {
+          if (response.status === 404) {
+            // Fallback to standard download
+            return downloadStandardResultWithSaveAs();
+          }
+          throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+        }
+        
+        const blob = await response.blob();
+        console.log('📦 Forensic blob created, size:', blob.size, 'bytes, type:', blob.type);
+        
+        // Use direct downloadFileWithSaveAs for consistent Save As behavior
+        const { downloadFileWithSaveAs } = await import('@/utils/fileDownload');
+        await downloadFileWithSaveAs(
+          blob,
           defaultFilename,
           `Forensic evidence package saved as "{filename}"!`
         );
@@ -1090,10 +1107,22 @@ const ForensicEvidence = () => {
       const downloadEndpoint = `${API_BASE_URL}/api/operations/${currentOperationId}/download`;
       const defaultFilename = operationResult?.filename || `forensic_evidence_${currentOperationId.slice(0, 8)}.png`;
       
-      // Use the utility function for proper save as functionality
-      const { downloadFromUrl } = await import('@/utils/fileDownload');
-      await downloadFromUrl(
-        downloadEndpoint,
+      console.log('🔽 Forensic standard download - fetching from:', downloadEndpoint);
+      console.log('📁 Forensic standard download - suggested filename:', defaultFilename);
+      
+      // Fetch the file first, then use downloadFileWithSaveAs directly (like PixelVault)
+      const response = await fetch(downloadEndpoint);
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      console.log('📦 Forensic standard blob created, size:', blob.size, 'bytes, type:', blob.type);
+      
+      // Use direct downloadFileWithSaveAs for consistent Save As behavior
+      const { downloadFileWithSaveAs } = await import('@/utils/fileDownload');
+      await downloadFileWithSaveAs(
+        blob,
         defaultFilename,
         `Forensic evidence file saved as "{filename}"!`
       );
