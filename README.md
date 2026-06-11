@@ -1,343 +1,315 @@
 <div align="center">
 
+<img src="./Preview Images/LOGO.png" width="260"/>
+
 # 🛡️ VeilForge
-### *Advanced Steganography Platform*
 
-**Hide your secrets in plain sight with cutting-edge steganography technology**
+### Secure Steganography & Digital Watermarking Platform
 
-![VeilForge Banner](https://img.shields.io/badge/VeilForge-Steganography%20Platform-blue?style=for-the-badge)
+<p>
+Hide sensitive information securely inside digital media using advanced steganography,
+encryption, copyright watermarking, and forensic metadata embedding.
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![React](https://img.shields.io/badge/React-18+-61dafb.svg?logo=react)](https://reactjs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Latest-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178c6.svg?logo=typescript)](https://www.typescriptlang.org/)
+<br>
 
-[🚀 **Try Live Demo**](https://veilforge-demo.vercel.app) • [📖 **Documentation**](./DEPLOYMENT_GUIDE.md) • [🐛 **Report Issues**](../../issues)
+![Python](https://img.shields.io/badge/Python-0F4C81?style=for-the-badge\&logo=python\&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-00BFFF?style=for-the-badge\&logo=fastapi\&logoColor=white)
+![React](https://img.shields.io/badge/React-89CFF0?style=for-the-badge\&logo=react\&logoColor=0F4C81)
+![TypeScript](https://img.shields.io/badge/TypeScript-0F4C81?style=for-the-badge\&logo=typescript\&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-00BFFF?style=for-the-badge\&logo=supabase\&logoColor=white)
+
+<br>
+
+![Status](https://img.shields.io/badge/Status-Completed-0F4C81?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-00BFFF?style=flat-square)
+![Platform](https://img.shields.io/badge/Platform-Web-89CFF0?style=flat-square\&logo=googlechrome)
 
 </div>
 
 ---
 
-## 🌟 **What is VeilForge?**
+# 🌟 Overview
 
-VeilForge is a **state-of-the-art steganography platform** that allows you to securely hide sensitive data inside everyday digital files. Whether you're a cybersecurity professional, researcher, digital forensics investigator, or privacy advocate, VeilForge provides enterprise-grade data concealment capabilities through an intuitive web interface.
+VeilForge is a full-stack steganography platform developed to provide secure and invisible data protection through modern cryptographic and steganographic techniques.
 
-### ✨ **Key Capabilities**
+The platform enables users to hide and extract confidential information from images, audio, video, and document files while preserving the original appearance of the carrier media.
 
-🖼️ **Multi-Format Support** • Hide data in images, videos, audio files, and documents  
-🔐 **Military-Grade Encryption** • AES-256-GCM encryption with password protection  
-🕵️ **Forensic Mode** • Advanced embedding with tamper detection  
-📦 **Batch Processing** • Process multiple files simultaneously  
-🎯 **Real-Time Progress** • Live status updates and progress tracking  
-🌐 **Modern Interface** • Responsive design with dark/light themes  
-🔒 **Secure Processing** • Temporary file handling with automatic cleanup  
-📊 **Operation History** • Track all steganography operations with database integration
+In addition to traditional steganography, VeilForge includes specialized modules for copyright watermarking, forensic metadata embedding, and AI-assisted image generation workflows.
 
 ---
 
-## 🎯 **How It Works**
+# ✨ Core Features
 
-<div align="center">
+### 🔐 Secure Data Protection
+
+* Password-protected data embedding
+* Encrypted hidden content
+* Secure extraction workflow
+
+### 🖼️ Multi-Format Support
+
+* Images
+* Audio Files
+* Video Files
+* Documents
+
+### 🛡️ Specialized Security Modules
+
+* General Steganography
+* Copyright Watermarking
+* Forensic Metadata Embedding
+* PixelVault AI Integration
+
+### ⚡ User Experience
+
+* Modern responsive interface
+* Real-time progress tracking
+* Intuitive workflow
+* Interactive dashboard
+
+---
+
+# 📸 Project Preview
+
+## 🏠 Landing Page
+
+<p align="center">
+  <img src="./Preview Images/webpage.JPG" width="95%" alt="Landing Page">
+</p>
+
+---
+
+## 🔐 General Protection Module
+
+<p align="center">
+  <img src="./Preview Images/preview.JPG" width="95%" alt="General Protection Module">
+</p>
+
+---
+
+## 🏗️ System Architecture
+
+<p align="center">
+  <img src="./Preview Images/df0.png" width="95%" alt="Architecture Diagram">
+</p>
+
+---
+
+# ⚙️ Technology Stack
+
+<table align="center">
+<tr>
+<td align="center">
+
+### 🎨 Frontend
+
+React.js
+
+TypeScript
+
+Tailwind CSS
+
+ShadCN UI
+
+</td>
+
+<td align="center">
+
+### ⚡ Backend
+
+FastAPI
+
+Python
+
+REST APIs
+
+</td>
+
+</tr>
+
+<tr>
+
+<td align="center">
+
+### 🗄️ Database
+
+Supabase
+
+PostgreSQL
+
+</td>
+
+<td align="center">
+
+### 🔬 Processing
+
+OpenCV
+
+NumPy
+
+Pillow (PIL)
+
+</td>
+
+</tr>
+
+</table>
+
+---
+
+# 🔄 System Workflow
 
 ```mermaid
-graph LR
-    A[📁 Upload Files] --> B[🔐 Set Password]
-    B --> C[🛠️ Processing]
-    C --> D[📥 Download Result]
-    
-    E[📤 Upload Stego File] --> F[🔑 Enter Password]
-    F --> G[🔍 Extract Data]
-    G --> H[💾 Recover Content]
-    
-    style A fill:#e1f5fe
-    style D fill:#c8e6c9
-    style E fill:#fff3e0
-    style H fill:#f3e5f5
+flowchart LR
+
+A[📂 Upload Carrier File]
+--> B[🔐 Select Security Module]
+
+B --> C[📝 Embed Hidden Data]
+B --> D[🔍 Extract Hidden Data]
+
+C --> E[💾 Download Secure File]
+D --> F[📤 Recover Original Content]
 ```
 
-</div>
+---
 
-### **Embedding Process**
-1. **📁 Upload Carrier File** - Choose your cover file (image, video, audio, or document)
-2. **📝 Select Content** - Type text or upload a file to hide
-3. **🔐 Set Security** - Create a strong encryption password
-4. **⚙️ Choose Method** - Select standard or forensic embedding mode
-5. **🔄 Process** - VeilForge embeds your data invisibly
-6. **💾 Download** - Get your steganographically enhanced file
+# 🏗️ Architecture Overview
 
-### **Extraction Process**
-1. **📤 Upload File** - Upload a file containing hidden data
-2. **🔑 Enter Password** - Provide the decryption password
-3. **🔍 Extract** - VeilForge recovers the hidden content
-4. **💾 Download** - Retrieve your original hidden data
+The platform follows a modular architecture consisting of:
+
+### 🌐 Frontend Layer
+
+* React.js
+* TypeScript
+* Responsive UI
+
+### ⚡ Backend Layer
+
+* FastAPI Services
+* Processing Engine
+* Security Modules
+
+### 🛡️ Core Processing Layer
+
+* Steganography Engine
+* Watermarking Engine
+* Forensic Metadata Engine
+
+### 🗄️ Storage Layer
+
+* Supabase Database
+* Metadata Management
+* User Activity Records
 
 ---
 
-## 🧪 **Use Cases**
+# 🚀 Getting Started
 
-| **Sector** | **Application** | **Benefits** |
-|------------|-----------------|--------------|
-| **🔍 Digital Forensics** | Evidence metadata embedding | Tamper detection, chain of custody |
-| **🔒 Secure Communication** | Covert message transmission | Undetectable communication channels |
-| **©️ Copyright Protection** | Ownership watermarking | Proof of authorship, piracy prevention |
-| **💾 Data Backup** | Key storage in media files | Distributed backup strategy |
-| **🛡️ Privacy Protection** | Document concealment | Personal data protection |
-| **🔬 Research** | Information hiding studies | Academic and commercial research |
+## Clone Repository
 
----
-
-## 🛠️ **Technology Stack**
-
-<div align="center">
-
-| **Component** | **Technology** | **Purpose** |
-|---------------|----------------|-------------|
-| **Frontend** | React 18 + TypeScript | Modern, responsive user interface |
-| **Backend** | FastAPI + Python 3.11 | High-performance API server |
-| **Database** | Supabase (PostgreSQL) | Operation tracking and user management |
-| **Styling** | TailwindCSS + ShadCN/UI | Beautiful, accessible components |
-| **Processing** | OpenCV, PIL, NumPy | Advanced steganography algorithms |
-| **Security** | AES-256-GCM, PBKDF2 | Military-grade encryption |
-| **Deployment** | Vercel + Render | Global CDN and scalable hosting |
-
-</div>
-
----
-
-## 📊 **Performance Specifications**
-
-| **File Type** | **Max Size** | **Processing Time** | **Embedding Capacity** | **Security Level** |
-|---------------|--------------|-------------------|---------------------|-------------------|
-| **🖼️ Images** | 50 MB | 2-5 seconds | ~12.5% of carrier | High |
-| **🎵 Audio** | 100 MB | 5-10 seconds | ~6.25% of carrier | Very High |
-| **🎬 Video** | 500 MB | 15-30 seconds | ~3.125% of carrier | Excellent |
-| **📄 Documents** | 25 MB | 1-3 seconds | ~25% of carrier | High |
-
-**Supported Formats:**
-- **Images**: PNG, JPEG, BMP, TIFF, GIF
-- **Audio**: WAV, MP3, FLAC, OGG, AAC
-- **Video**: MP4, AVI, MOV, WMV, MKV  
-- **Documents**: PDF, DOCX, TXT, RTF
-
----
-
-## 🚀 **Quick Start**
-
-### **🌐 Try Online (Recommended)**
-
-Visit our live demo: **[VeilForge Demo](https://veilforge-demo.vercel.app)**
-
-No installation required! Experience all features instantly in your browser.
-
-### **💻 Local Development**
-
-#### Prerequisites
-- **Node.js** 18+ and npm
-- **Python** 3.11+ and pip
-- **Git** for version control
-
-#### **1️⃣ Clone Repository**
 ```bash
-git clone https://github.com/srushti2026/VeilForge-Steganogaphy_Platform.git
-cd VeilForge-Steganogaphy_Platform
+git clone https://github.com/srushti2026/Crypto-Steganography.git
 ```
 
-#### **2️⃣ Setup Backend**
+```bash
+cd Crypto-Steganography
+```
+
+---
+
+## Backend Setup
+
 ```bash
 cd backend
+
 pip install -r requirements.txt
+
 python app.py
 ```
-*Backend runs on `http://localhost:8000`*
 
-#### **3️⃣ Setup Frontend** 
+Backend will run on:
+
+```text
+http://localhost:8000
+```
+
+---
+
+## Frontend Setup
+
 ```bash
 cd frontend
+
 npm install
+
 npm run dev
 ```
-*Frontend runs on `http://localhost:5173`*
 
-#### **4️⃣ Access Application**
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
+Frontend will run on:
+
+```text
+http://localhost:5173
+```
 
 ---
 
-## 🏗️ **Project Structure**
+# 📂 Project Structure
 
-```
-VeilForge/
-├── 🌐 frontend/                 # React Frontend Application
-│   ├── src/
-│   │   ├── components/          # Reusable UI components
-│   │   ├── pages/              # Main application pages
-│   │   ├── services/           # API integration services
-│   │   └── utils/              # Utility functions
-│   ├── public/                 # Static assets
-│   ├── package.json            # Node.js dependencies
-│   └── vercel.json            # Vercel deployment config
+```text
+Crypto-Steganography
 │
-├── 🔧 backend/                  # FastAPI Backend Application
-│   ├── app.py                  # Main FastAPI application
-│   ├── modules/                # Steganography processing modules
-│   ├── requirements.txt        # Python dependencies
-│   └── render.yaml            # Render deployment config
+├── frontend
+│   ├── components
+│   ├── pages
+│   ├── services
+│   └── assets
 │
-├── 📚 docs/                     # Documentation and guides
-├── 🚀 DEPLOYMENT_GUIDE.md      # Deployment instructions
-├── 📝 MIGRATION_STATUS.md      # Migration completion status
-└── 📄 README.md                # This file
+├── backend
+│   ├── modules
+│   ├── app.py
+│   └── requirements.txt
+│
+├── Preview Images
+│   ├── LOGO.png
+│   ├── webpage.JPG
+│   ├── preview.JPG
+│   └── df0.png
+│
+└── README.md
 ```
 
 ---
 
-## 🔐 **Security Features**
+# 🔮 Future Enhancements
 
-### **🛡️ Encryption & Protection**
-- **AES-256-GCM Encryption**: Military-grade security standard
-- **PBKDF2 Key Derivation**: 100,000+ iterations for password hashing
-- **HMAC-SHA256**: Message authentication codes for integrity
-- **Digital Signatures**: Authenticity verification
-
-### **🕵️ Steganography Techniques**
-- **LSB (Least Significant Bit)**: Undetectable pixel manipulation
-- **Frequency Domain**: DCT and DWT coefficient embedding
-- **Metadata Preservation**: Maintain file authenticity
-- **Adaptive Embedding**: Content-aware data placement
-
-### **🔒 Privacy & Safety**
-- **No Data Logging**: Files processed without permanent storage
-- **Secure Upload**: Temporary file handling with automatic cleanup
-- **Input Validation**: Comprehensive sanitization and validation
-- **HTTPS Encryption**: End-to-end secure communication
+* AI-powered steganalysis detection
+* Advanced forensic reporting
+* Additional embedding algorithms
+* Cloud-based secure storage
+* Multi-user collaboration features
 
 ---
 
-## 🚀 **Deployment Guide**
+# 👩‍💻 Developed By
 
-VeilForge is deployment-ready for production environments:
+### Srushti Kumar
 
-### **Backend → Render**
-```bash
-# Automated deployment using render.yaml
-git push origin main
-# Render automatically detects and deploys backend
-```
+Computer Science & Design Engineer
 
-### **Frontend → Vercel**
-```bash
-# Automated deployment using vercel.json  
-git push origin main
-# Vercel automatically detects and deploys frontend
-```
+Data Science & Analytics Enthusiast
 
-**📖 Complete deployment instructions: [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)**
-
----
-
-## 🤝 **Contributing**
-
-We welcome contributions from developers, researchers, and security professionals!
-
-### **🚀 Quick Contribution Steps**
-1. **🍴 Fork** the repository
-2. **🌿 Create** a feature branch: `git checkout -b feature/amazing-feature`
-3. **💾 Commit** changes: `git commit -m 'Add amazing feature'`
-4. **📤 Push** to branch: `git push origin feature/amazing-feature`
-5. **🔄 Open** a Pull Request
-
-### **🎯 Contribution Areas**
-- **🐛 Bug Fixes**: Help improve stability and performance
-- **✨ New Features**: Implement advanced steganography algorithms
-- **📚 Documentation**: Enhance guides and tutorials
-- **🔍 Testing**: Add comprehensive test coverage
-- **🎨 UI/UX**: Improve user interface and experience
-- **🔒 Security**: Enhance security measures and protocols
-
-### **📋 Development Guidelines**
-- Follow existing code style and conventions
-- Add tests for new features
-- Update documentation for changes
-- Ensure all tests pass before submitting
-
----
-
-## 🛡️ **Legal & Responsible Use**
-
-### **✅ Legitimate Applications**
-- **🔍 Digital forensics and investigation**
-- **🔬 Academic research and education**
-- **🛡️ Privacy protection and secure communication**
-- **©️ Copyright protection and watermarking**
-- **🔒 Data backup and recovery systems**
-
-### **⚠️ Important Notice**
-This software is designed for **legitimate, legal, and ethical purposes only**. Users must:
-- Comply with local, national, and international laws
-- Respect intellectual property rights
-- Obtain proper authorization before processing others' data
-- Use the technology responsibly and ethically
-
----
-
-## 📞 **Support & Resources**
-
-### **📚 Documentation**
-- **🚀 Deployment Guide**: [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)
-- **🔄 Migration Status**: [MIGRATION_STATUS.md](./MIGRATION_STATUS.md)
-- **🧹 Cleanup Summary**: [CLEANUP_SUMMARY.md](./CLEANUP_SUMMARY.md)
-
-### **🆘 Get Help**
-- **🐛 Bug Reports**: [Create an Issue](../../issues/new?template=bug_report.md)
-- **💡 Feature Requests**: [Request Feature](../../issues/new?template=feature_request.md)
-- **💬 Discussions**: [GitHub Discussions](../../discussions)
-- **📧 Contact**: Open an issue for direct communication
-
-### **🤝 Community**
-- **👥 Contributors**: [View Contributors](../../graphs/contributors)
-- **⭐ Stargazers**: [View Stargazers](../../stargazers)
-- **🔄 Forks**: [View Network](../../network)
-
----
-
-## 📄 **License**
-
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for full details.
-
-```
-MIT License - Free for personal, educational, and commercial use
-Copyright (c) 2024 VeilForge Development Team
-```
-
----
-
-## 🙏 **Acknowledgments**
-
-VeilForge is built upon the foundation of exceptional open-source technologies:
-
-- **React Team** for the amazing frontend framework
-- **FastAPI** for the high-performance Python web framework  
-- **Supabase** for the powerful backend-as-a-service platform
-- **OpenCV Community** for computer vision capabilities
-- **Vercel & Render** for seamless deployment platforms
-- **Steganography Research Community** for decades of academic contributions
+Passionate about Cybersecurity, AI, Data Analytics, and Full-Stack Development.
 
 ---
 
 <div align="center">
 
-### **🚀 Ready to Start Hiding Data Securely?**
+### ⭐ If you found this project interesting, consider giving it a star!
 
-**[🌍 Try VeilForge Live](https://veilforge-demo.vercel.app)** • **[⭐ Star this Repository](../../stargazers)** • **[🔄 Fork & Contribute](../../fork)**
+<img src="./Preview Images/LOGO.png" width="120"/>
 
----
-
-**Made with ❤️ for Privacy, Security & Digital Freedom**
-
-*Empowering secure communication through advanced steganography*
-
-![VeilForge Footer](https://img.shields.io/badge/VeilForge-2024-blue?style=for-the-badge)
+**Built with 💙 using React, FastAPI, Python & Supabase**
 
 </div>
