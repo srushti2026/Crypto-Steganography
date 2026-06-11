@@ -1,5 +1,3 @@
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0F4C81,100:00BFFF&height=180&section=header&text=VeilForge&fontSize=50&fontColor=ffffff&animation=fadeIn"/>
-
 <div align="center">
 
 <img src="./Preview_images/LOGO.png" width="220"/>
@@ -96,25 +94,8 @@ Crypto-Steganography/
 
 ---
 
-## 🌱 Future Improvements
-
-* ✅ Advanced steganalysis detection
-* ✅ Additional embedding algorithms
-* ✅ Cloud storage integration
-* ✅ Enhanced forensic reporting
-* ✅ Multi-user collaboration support
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License.
-
----
-
 <div align="center">
 
-### ⭐ If you found this project interesting, consider giving it a star!
 
 <img src="./Preview_images/LOGO.png" width="120"/>
 
