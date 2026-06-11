@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="./Preview Images/LOGO.png" width="220"/>
+<img src="./Preview_images/LOGO.png" width="220"/>
 
 # 🛡️ VeilForge – Secure Steganography & Digital Watermarking Platform
 
@@ -41,17 +41,17 @@ The platform allows users to hide and retrieve confidential data from images, au
 
 ### 🏠 Landing Page
 
-<img src="./Preview Images/webpage.JPG" alt="Landing Page" width="850"/>
+<img src="./Preview_images/preview.JPG" alt="Landing Page" width="850"/>
 
 ### 🔐 General Protection Module
 
-<img src="./Preview Images/preview.JPG" alt="General Protection Module" width="850"/>
+<img src="./Preview_images/webpage.JPG" alt="General Protection Module" width="850"/>
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ System Architecture - Data flow
 
-<img src="./Preview Images/df0.png" alt="Architecture Diagram" width="900"/>
+<img src="./Preview_images/df0.png" alt="Architecture Diagram" width="900"/>
 
 The platform follows a modular architecture where the React frontend communicates with a FastAPI backend that manages steganography operations, AI image generation workflows, and metadata storage through Supabase.
 
@@ -116,7 +116,7 @@ This project is licensed under the MIT License.
 
 ### ⭐ If you found this project interesting, consider giving it a star!
 
-<img src="./Preview Images/LOGO.png" width="120"/>
+<img src="./Preview_images/LOGO.png" width="120"/>
 
 Built with 💙 using React, FastAPI, Python & Supabase
 
